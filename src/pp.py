@@ -1,25 +1,22 @@
 '''
-Created on 2017Äê8ÔÂ2ÈÕ
-
+Created on 2017/08/03
 @author: wagan
 '''
-import scrapy
-from scrapy.http import Request
-from scrapy.spiders import CrawlSpider, Rule
+import urllib.request
+import urllib
+import json
 
-class DmozSpider(scrapy.Spider):
-    name = "dmoz"
-    allowed_domains = ["dmoz.org"]
-    start_urls = [
-        "http://www.dmoz.org/Computers/Programming/Languages/Python/Books/",
-        "http://www.dmoz.org/Computers/Programming/Languages/Python/Resources/",
-        "https://mstore.ppdai.com/search#iphone 6"
-    ]
 
-    def parse(self, response):
-        filename = response.url.split("/")[-2]
-        with open(filename, 'wb') as f:
-            f.write(response.body)
+def searchProduct(search):
+    url="https://mstore.ppdai.com/product/searchPro"
+    payload = {"pageIndex": 1, "pageSize": 200, "name": "iphone 6"}
+    params = json.dumps(payload).encode('utf8')
+    request = urllib.request.Request(url, data=params,
+                             headers={'content-type': 'application/json'})
+    response = urllib.request.urlopen(request)
+    res_body = response.read()
+    print(res_body)
 
 if __name__ == '__main__':
+    searchProduct(None)
     pass
