@@ -126,7 +126,18 @@ def insertEs(doc):
 
 def jd(key):
     url="https://so.m.jd.com/ware/search.action?keyword=Apple%20iPhone%207%20Plus"
-    
+    request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
+    response = urllib.request.urlopen(request)
+    lines = response.readlines()
+    for line in lines:
+        strLine = line.decode("utf-8")
+        if "searchData:" in strLine:
+            prodList = strLine[strLine.index("searchData:") + len("searchData:"):strLine.index("abtestForUpToSaving") - 2]
+            prods = json.loads(prodList)
+            wareList = prods["wareList"]["wareList"]
+            for ware in wareList:
+                print(ware)
+            break
     pass
 
 def parseWords(tip):
@@ -153,7 +164,8 @@ def parseWords(tip):
     return words
 
 if __name__ == '__main__':
-    searchPpProduct()
+    jd("Apple iphone")
+    '''searchPpProduct()
     results = es.search(index="pp", doc_type='prod', body=  {
         'query': {
             'match': {
@@ -170,4 +182,4 @@ if __name__ == '__main__':
     })
     for result in results["hits"]["hits"]:
         print(result)
-    pass
+    pass'''
