@@ -6,6 +6,10 @@ import urllib.request
 import json
 import re
 import copy
+import flask
+import time
+import MySQLdb
+import urllib.parse
 from elasticsearch import Elasticsearch
 
 
@@ -42,10 +46,10 @@ def searchPpProduct():
         prodList = proContent["responseContent"]["product004List"]
         for prod in prodList:
             prod["name"] = re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", prod["name"])
-            del prod["pictureUrl"],prod["iconTypeName"]
+            del prod["pictureUrl"],prod["iconTypeName"],prod["hotWords"]
             prodId = prod["linkUrl"][9:]
+            insertEs(prod)
             ppProdSku(prodId, prod)
-            #insertEs(prod)
         print(prodList)
         if pageIndex >= totalPage:
             break
@@ -90,6 +94,7 @@ def ppProdSku(prodId, prod):
                 exist = False
                 prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
         if not exist:
+            skuProd = {"name":prodName}
             print(prodName, getPrice(attributeIds, prodId)) 
         
 def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
@@ -103,29 +108,55 @@ def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
     
 
 def getPrice(attributeIds, prodId):
+
     url = "https://mstore.ppdai.com/product/getSkuProSimpleByAttr"
     payload = {"attributeValueIds":attributeIds, "productSkuId": prodId}
     proContent = getReponseFromPp(url, payload)
     return proContent["responseContent"]["price"]
-    
 
+    
 def getReponseFromPp(url, payload):
-    params = json.dumps(payload).encode('utf8')
-    request = urllib.request.Request(url, data=params,
-                                headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
-    response = urllib.request.urlopen(request)
-    responseContent = response.read()
-    return json.loads(responseContent) 
+    while True:
+        try:
+            params = json.dumps(payload).encode('utf8')
+            request = urllib.request.Request(url, data=params,
+                                        headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
+            response = urllib.request.urlopen(request, timeout=10)
+            responseContent = response.read()
+            return json.loads(responseContent) 
+        except:
+            time.sleep(2)
 
 
 es = Elasticsearch(hosts=[{'host': "172.17.4.203", 'port': 9200}])
-def insertEs(doc):
-    es.index(index="pp", doc_type='prod', body=doc)
-    
+docs = {}
 
+
+def insertEs(doc):
+    if doc["linkUrl"] in docs:
+        pass
+    else:
+        es.index(index="pp", doc_type='prod', body=doc)
+
+def queryAll():
+    fromIndex = 0
+    size = 500
+    
+    while True:
+        results = es.search(index="pp", doc_type='prod', body=  {
+            "from" : fromIndex, "size" : size,
+        })
+        for result in results["hits"]["hits"]:
+            docs[result["_source"]["linkUrl"]] = result
+        pass
+        total = results["hits"]["total"]
+        fromIndex = fromIndex + size
+        if fromIndex > total:
+            break    
 
 def jd(key):
-    url="https://so.m.jd.com/ware/search.action?keyword=Apple%20iPhone%207%20Plus"
+    url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(key)
+    print(url)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     response = urllib.request.urlopen(request)
     lines = response.readlines()
@@ -163,23 +194,14 @@ def parseWords(tip):
         pre = ord(c)
     return words
 
+
+def connect():
+    db=MySQLdb.connect(host="192.168.1.50", port=13306, user="root", passwd="Initial0",db="prodprice")
+    c=db.cursor()
+    c.execute("select * from product")
+
 if __name__ == '__main__':
-    jd("Apple iphone")
-    '''searchPpProduct()
-    results = es.search(index="pp", doc_type='prod', body=  {
-        'query': {
-            'match': {
-                'name':  '32G'
-            }
-        },
-        "highlight" : {
-            "pre_tags" : ["<tag1>", "<tag2>"],
-            "post_tags" : ["</tag1>", "</tag2>"],
-            "fields" : {
-                "content" : {}
-            }
-        }
-    })
-    for result in results["hits"]["hits"]:
-        print(result)
-    pass'''
+    #jd("Apple iPhone 7 Plus 32G 银色 移动联通电信4G手机 银色 32G PLUS")
+    #connect()
+    queryAll()
+    searchPpProduct()
