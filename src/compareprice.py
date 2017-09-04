@@ -92,7 +92,8 @@ def ppProdSku(prodId, prod):
                        "monthPayments": str(sku["monthPayments"]), 
                        "months":str(sku["months"]),
                        "skuNames" :",".join(skuNames),
-                       "skuIds" :",".join(skuIds)}
+                       "skuIds" :",".join(skuIds),
+                       "seller": ""}
         insertOrUpdateDB(skuProd, False)
         
 def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):

@@ -86,16 +86,16 @@ def ppProdSku(prodId, prod):
     prodName = prod["name"]
     srcProdName = getDefaultName(crossIds, attributeNames, attributeValueIds, prodName)
     for attributeIds in crossIds:
-        exist = True
+        skuNames = []
         prodName = srcProdName
         for attributeValueId in attributeIds:
             attributeName = attributeNames[attributeValueId]["name"]
-            if attributeName not in prodName:
-                exist = False
-                prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
-        if not exist:
-            skuProd = {"name":prodName}
-            print(prodName, getPrice(attributeIds, prodId)) 
+            skuNames.append(attributeName)
+            prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
+        sku = getSku(attributeIds, prodId)
+        skuProd = {"name":prodName, "linkUrl": "/product/" + str(sku["id"]), "price":sku["price"], 
+                       "monthPayments": str(sku["monthPayments"]), "months":str(sku["months"]), "skuNames" :",".join(skuNames)}
+        insertEs(skuProd)
         
 def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
     defaultName = prodName
@@ -107,12 +107,12 @@ def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
     return defaultName
     
 
-def getPrice(attributeIds, prodId):
-
+def getSku(attributeIds, prodId):
     url = "https://mstore.ppdai.com/product/getSkuProSimpleByAttr"
     payload = {"attributeValueIds":attributeIds, "productSkuId": prodId}
     proContent = getReponseFromPp(url, payload)
-    return proContent["responseContent"]["price"]
+    print(proContent)
+    return proContent["responseContent"]
 
     
 def getReponseFromPp(url, payload):
@@ -134,9 +134,17 @@ docs = {}
 
 def insertEs(doc):
     if doc["linkUrl"] in docs:
+        result = docs[doc["linkUrl"]]
+        msg2 = '{"doc": {"price": ' + str(doc["price"]) +', "skuNames":"' + doc["skuNames"] +'"}}'
+        es.update(index="pp", doc_type='prod', id=result["_id"], body=msg2)
         pass
     else:
         es.index(index="pp", doc_type='prod', body=doc)
+        
+
+def updateEs(doc):
+    pass
+
 
 def queryAll():
     fromIndex = 0
@@ -152,7 +160,7 @@ def queryAll():
         total = results["hits"]["total"]
         fromIndex = fromIndex + size
         if fromIndex > total:
-            break    
+            break
 
 def jd(key):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(key)
