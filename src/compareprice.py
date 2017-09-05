@@ -93,6 +93,8 @@ def searchPpProduct(key=""):
             del prod["pictureUrl"],prod["iconTypeName"],prod["hotWords"]
             prodId = prod["linkUrl"][9:]
             prod["seller"] = getSeller(prodId)
+            prod["skuNames"] = ""
+            prod["skuIds"] = ""
             insertOrUpdateDB(prod)
             ppProdSku(prodId, prod)
         if pageIndex >= totalPage:
@@ -145,6 +147,7 @@ def ppProdSku(prodId, prod):
             skuIds.append(str(attributeValueId))
             prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
         sku = getSku(attributeIds, prodId)
+        print(str(sku).encode(encoding='utf_8', errors='strict'))
         skuProd = {"name":prodName, "linkUrl": "/product/" + str(sku["id"]), "price":sku["price"], 
                        "monthPayments": str(sku["monthPayments"]), 
                        "months":str(sku["months"]),
@@ -191,7 +194,7 @@ def insertOrUpdateDB(doc, init = True):
         try:
             conn = connectToDb()
             cursor = conn.cursor()
-            if exist and not init:
+            if exist:
                 result = docs[doc["linkUrl"]]
                 data_pp = {
                     'skuNames': doc["skuNames"],
@@ -203,11 +206,12 @@ def insertOrUpdateDB(doc, init = True):
                     'id': result
                 }
                 cursor.execute(update_pp, data_pp)
-            elif not exist and init:
+            else:
                 data_pp = {
                     'product_id': doc["linkUrl"][9:],
                     'name': doc["name"],
-                    'skuNames': "",
+                    'skuNames': doc["skuNames"],
+                    'skuIds': doc["skuIds"],
                     'linkUrl': doc["linkUrl"],                    
                     'price': doc["price"],
                     'monthPayments': doc["monthPayments"],
