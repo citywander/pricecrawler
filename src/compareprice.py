@@ -10,6 +10,9 @@ import datetime
 import threading
 import configparser
 from flask import Flask, request
+from re import search
+from collections import Counter
+
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
@@ -24,29 +27,29 @@ logger.addHandler(ch)
 docs = {}
 
 add_pp = ("INSERT INTO pp "
-              "(name, skuNames, linkUrl, price, monthPayments, months,seller,create_date)"
-              "VALUES (%(name)s, %(skuNames)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(create_date)s)")
+              "(product_id, name, skuNames, linkUrl, price, monthPayments, months,seller,create_date, update_date) "
+              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(create_date)s, %(update_date)s)")
 
 update_pp = ("UPDATE pp "
              "SET price=%(price)s, monthPayments= %(monthPayments)s, skuNames=%(skuNames)s, skuIds=%(skuIds)s, update_date=%(update_date)s "
              "WHERE id=%(id)s"
              )
 
-add_product=("INSERT INTO product "
+add_search=("INSERT INTO search "
               "(keywords, e_keywords, description, create_date, update_date) "
               "VALUES (%(keywords)s, %(e_keywords)s, %(description)s, %(create_date)s, %(update_date)s)")
 
-update_product=("UPDATE product "
+update_search=("UPDATE search "
               "set e_keywords=%(e_keywords)s, description=%(description)s,update_date=%(update_date)s "
               "where id=%(id)s")
 
 add_price=("INSERT INTO price "
-              "(product_id, pp_id, price, seller, url, create_date, update_date)"
-              "VALUES (%(product_id)s, %(pp_id)s, %(price)s,  %(seller)s, %(url)s, %(create_date)s, %(update_date)s)")
+              "(search_id, product_id, description, src, price, seller, url, create_date, update_date)"
+              "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s,  %(seller)s, %(url)s, %(create_date)s, %(update_date)s)")
 
 update_price=("UPDATE price "
               "set price=%(price)s, update_date=%(update_date)s "
-              "WHERE product_id=%(product_id)s and pp_id=%(pp_id)s")
+              "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
 app = Flask(__name__)
 
@@ -59,7 +62,7 @@ def connectToDb():
             pwd=config.get("db","pwd")
             return MySQLdb.connect(host=host, port=port, user=user, passwd=pwd, db="prodprice", charset='utf8')
         except Exception as e:
-            print(e)
+            logger.error(e)
             time.sleep(2)
 
 
@@ -173,13 +176,12 @@ def getReponseFromPp(url, payload):
             params = json.dumps(payload).encode('utf8')
             request = urllib.request.Request(url, data=params,
                                         headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
-            #request.set_proxy("proxy.pvgl.sap.corp:8080", 'http')
-            #request.set_proxy("proxy.pvgl.sap.corp:8080", 'https')
+            setProxy(request)
             response = urllib.request.urlopen(request, timeout=10)
             responseContent = response.read()
             return json.loads(responseContent) 
         except Exception as e:
-            print(e)
+            logger.error(e)
             time.sleep(2)
     
 
@@ -203,13 +205,15 @@ def insertOrUpdateDB(doc, init = True):
                 cursor.execute(update_pp, data_pp)
             elif not exist and init:
                 data_pp = {
+                    'product_id': doc["linkUrl"][9:],
                     'name': doc["name"],
                     'skuNames': "",
-                    'linkUrl': doc["linkUrl"],
+                    'linkUrl': doc["linkUrl"],                    
                     'price': doc["price"],
                     'monthPayments': doc["monthPayments"],
                     'months': doc["months"],
                     'seller': doc["seller"],
+                    'update_date': getFormatDate(),
                     'create_date': getFormatDate()
                 }
                 cursor.execute(add_pp, data_pp)
@@ -223,11 +227,10 @@ def insertOrUpdateDB(doc, init = True):
             conn.close()  
     
         
-def jd(keywords):
+def jd(keywords, ekeywords, searchId, producctIds, inProductIds):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
-    #request.set_proxy("proxy.pvgl.sap.corp:8080", 'http')
-    #request.set_proxy("proxy.pvgl.sap.corp:8080", 'https')
+    setProxy(request)
 
     response = urllib.request.urlopen(request)
     lines = response.readlines()
@@ -239,7 +242,45 @@ def jd(keywords):
             break
     wareList = prods["wareList"]["wareList"]
     for ware in wareList:
-        print(str(ware).encode(encoding='utf_8', errors='strict'))
+        searched = True
+        values = str(ware.values()).lower()
+        for kw in keywords.split(","):
+            if kw not in values:
+                searched = False
+                break
+        if not searched:
+            continue        
+        for kw in ekeywords.split(","):
+           if kw in values and kw != "":
+               searched = False
+               break
+        if not searched:
+            continue
+        data_price = {
+            'search_id': searchId,
+            'product_id': ware["wareId"],
+            'price': ware["jdPrice"],
+            'description': ware["wname"],
+            'seller': "jd",
+            'src': "jd",
+            'url': "https://item.m.jd.com/product/" + ware["wareId"] + ".html",
+            "create_date": getFormatDate(),
+            "update_date": getFormatDate()
+        }
+        try:
+            conn = connectToDb()
+            cursor = conn.cursor()
+            if ware["wareId"] in producctIds:
+                cursor.execute(update_price, data_price)
+            else:            
+                cursor.execute(add_price, data_price)
+            inProductIds.append(str(ware["wareId"]))
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+        pass
+    
 
 class SearchPpProduct (threading.Thread):
     def __init__(self):
@@ -249,40 +290,47 @@ class SearchPpProduct (threading.Thread):
         searchPpProduct()
 
 
-@app.route('/products', methods=['POST'])
-def addProduct():
-    product = request.json
+def setProxy(request):
+    if config.has_option("proxy", "http.proxy"):
+        request.set_proxy(config.get("proxy", "http.proxy"), 'http')
+    
+    if config.has_option("proxy", "https.proxy"):
+        request.set_proxy(config.get("proxy", "https.proxy"), 'https')
+
+@app.route('/search', methods=['POST'])
+def addSearch():
+    search = request.json
     errorJson = {}
-    if "keywords" not in product:
+    if "keywords" not in search:
         errorJson["errorCode"] = "E001"
         errorJson["errorMsg"] = "keywords is requried"
         return responseError(errorJson, 400)
     description = None
-    if "description" in product:
-        description = product["description"]
+    if "description" in search:
+        description = search["description"]
     ekeywords = None
-    if "ekeywords" in product:
-        ekeywords = product["ekeywords"] 
-    data_product = {
-        'keywords': product["keywords"],
+    if "ekeywords" in search:
+        ekeywords = search["ekeywords"] 
+    data_search = {
+        'keywords': search["keywords"],
         'e_keywords': ekeywords,
         'description': description,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
     }
-    productId = compareKeywords(product["keywords"])
+    searchId = compareKeywords(search["keywords"])
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        if productId == -1:
-            cursor.execute(add_product, data_product)
-            productId = cursor.lastrowid
+        if searchId == -1:
+            cursor.execute(add_search, data_search)
+            searchId = cursor.lastrowid
         else:
-            data_product["id"] = productId
-            cursor.execute(update_product, data_product)
+            data_search["id"] = searchId
+            cursor.execute(update_search, data_search)
         conn.commit()
-        st = threading.Thread(target=scanPrice, args=(product["keywords"],ekeywords, productId))
-        st.start()        
+        st = threading.Thread(target=scanPrice, args=(search["keywords"],ekeywords, searchId))
+        st.start()
         return app.response_class(
             response=json.dumps({"result": "ok"}),
             status=200,
@@ -297,10 +345,22 @@ def addProduct():
         conn.close()
     
 
-@app.route('/products/<path:productId>', methods=['DELETE'])
-def deleteProduct(productId):
-    query1=("Delete from product where id=" + productId)
-    query2=("Delete from price where product_id=" + productId)
+def deletePriceBySearchId(searchId):
+    query=("Delete from price where search_id=" + str(searchId))
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    pass
+    
+@app.route('/search/<path:searchId>', methods=['DELETE'])
+def deleteSearch(searchId):
+    query1=("Delete from search where id=" + searchId)
+    query2=("Delete from price where search_id=" + searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -311,65 +371,135 @@ def deleteProduct(productId):
         cursor.close()
         conn.close()
     pass
+    return app.response_class(
+            response=json.dumps({"result": "ok"}),
+            status=200,
+            mimetype='application/json'
+    )
 
 
-@app.route('/products', methods=['GET'])
-def queryProduct():
+@app.route('/search', methods=['GET'])
+def querySearch():
     keywords = request.args.get('keywords')
     likes = lambda key : " name like '%" + key +"%'" 
-    query = "select keywords,e_keywords, description, price, seller, url, update_date from product pd, price p where pd.id=p.product_id"
+    query = "select keywords,e_keywords, description, price, seller, url, update_date from search pd, price p where pd.id=p.search_id"
     if not keywords is None:
         likesQuery = list(map(likes, keywords.split(",")))
         query = query + " and ".join(likesQuery.split(","))
         pass
     pass
 
-@app.route('/Products/<path:productId>', methods=['PUT'])
-def updateProduct(productId):
-    product = request.json
-    pass
-
-def scanPrice(keywords, ekeywords, productId):
-    if ekeywords is None:
-        ekeywords = ""
-    query = ("SELECT id, seller, linkUrl,price FROM pp where ")
-    likes = lambda key : " name like '%" + key +"%'" 
-    nlikes = lambda key : " name not like '%" + key +"%'"
-    likesQuery = list(map(likes, keywords.split(",")))
-    nlikesQuery = list(map(nlikes, ekeywords.split(",")))
+@app.route('/search/<path:searchId>', methods=['PUT'])
+def updateSearch(searchId):
+    update_all_search=("UPDATE search "
+              "set {COLS}, update_date=%(update_date)s "
+              "where id=%(id)s")    
+    search = request.json
+    cols=[]
+    data_search={}
+    keywords=""
+    ekeywords=""
+    if "keywords" not in search:
+        errorJson["errorCode"] = "E003"
+        errorJson["errorMsg"] = "keywords is required"
+        return responseError(errorJson, 400)
+    keywords = search["keywords"]
+    cols.append("keywords=%(keywords)s")
+    data_search["keywords"] = search["keywords"]
+    if "ekeywords" in search:
+        ekeywords = search["ekeywords"]
+        cols.append("e_keywords=%(e_keywords)s")
+        data_search["e_keywords"] = search["ekeywords"]
+    if "description" in search:
+        cols.append("description=%(description)s")
+        data_search["description"] = search["description"]
+    data_search["update_date"] = getFormatDate()
+    data_search["id"] = searchId
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        print(query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery))
-        cursor.execute(query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery))
-        for (ppId, seller,linkeUrl, price) in cursor:
+        update_all_search = update_all_search.replace("{COLS}", ",".join(cols))
+        cursor.execute(update_all_search, data_search)
+        conn.commit()
+        st = threading.Thread(target=scanPrice, args=(keywords,ekeywords, searchId))
+        st.start()        
+    except Exception as e:
+        errorJson= {}
+        errorJson["errorCode"] = "E004"
+        errorJson["errorMsg"] = str(e)
+        return responseError(errorJson, 400)         
+    finally:
+        cursor.close()
+        conn.close()
+    return app.response_class(
+            response=json.dumps({"result": "ok"}),
+            status=200,
+            mimetype='application/json'
+    )    
+
+def scanPrice(keywords, ekeywords, searchId):
+    if ekeywords == None:
+        ekeywords = ""
+    query = ("SELECT name, product_id, seller, linkUrl,price FROM pp where ")
+    likes = lambda key : " name like '%" + key +"%'" 
+    nlikes = lambda key : " name not like '%" + key +"%'"
+    likesQuery = list(map(likes, keywords.split(",")))
+    inProductIds=[]
+    if ekeywords == "":
+        sql = query + " and ".join(likesQuery)
+    else:
+        nlikesQuery = list(map(nlikes, ekeywords.split(",")))
+        sql = query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery)
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        productIds = getProductIdsFromPrice(cursor, searchId)        
+        cursor.execute(sql)
+        for (name, productId, seller,linkeUrl, price) in cursor:
             data_price = {
+                'search_id': searchId,
                 'product_id': productId,
-                'pp_id': ppId,
                 'price': price,
                 'seller': seller,
-                'url': linkeUrl,
+                'description': name,
+                'src': "pp",
+                'url': "https://mstore.ppdai.com/" + linkeUrl,
                 "create_date": getFormatDate(),
                 "update_date": getFormatDate()
             }
-            if existPrice(cursor, productId, ppId):
+            inProductIds.append(str(productId))
+            if str(productId) in productIds:
                 cursor.execute(update_price, data_price)
             else:    
-                cursor.execute(add_price, data_price)
-        jd(cursor, keywords)
+                cursor.execute(add_price, data_price)        
         conn.commit()
+        jd(keywords.lower(), ekeywords.lower(), searchId, productIds, inProductIds)
+        deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()
         conn.close()
 
 
-def existPrice(cursor, productId, ppId):
-    query = ("SELECT id FROM price where product_id=" + str(productId) + " and pp_id=" + str(ppId))
+def deletePrices(searchId, productIds):
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        for productId in productIds:
+            query=("Delete from price where search_id=" + str(searchId) + " and product_id=" + str(productId))
+            cursor.execute(query)
+        conn.commit()  
+    finally:
+        cursor.close()
+        conn.close()          
+    pass
+
+def getProductIdsFromPrice(cursor, searchId):
+    query = ("SELECT product_id FROM price where search_id=" + str(searchId))
     cursor.execute(query)
-    row = cursor.fetchone()
-    if row is None:
-        return False
-    return True
+    productIds = []
+    for (productId, ) in cursor:
+        productIds.append(str(productId))
+    return productIds
 
 def responseError(errorMsg, statusCode):
     response = app.response_class(
@@ -380,7 +510,7 @@ def responseError(errorMsg, statusCode):
     return response
 
 def compareKeywords(keywords):
-    query = ("SELECT id, keywords FROM product where ")
+    query = ("SELECT id, keywords FROM search where ")
     keys = keywords.split(",")
     likes = lambda key : " keywords like '%" + key +"%'" 
     allQuery = list(map(likes, keys))
@@ -405,7 +535,7 @@ if __name__ == '__main__':
     config.read("cp.ini")
     logger.info("Initiate Cache")
     initCache()
-    
+
     logger.info("Parse PP")
     thread1 = SearchPpProduct()
     thread1.start()
