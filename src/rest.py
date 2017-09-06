@@ -12,6 +12,15 @@ app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_MIMETYPE'] = "application/json;charset=UTF-8"
 app.config['LANGUAGES']="zh-CN"
 
+
+add_search=("INSERT INTO search "
+              "(keywords, e_keywords, description, create_date, update_date) "
+              "VALUES (%(keywords)s, %(e_keywords)s, %(description)s, %(create_date)s, %(update_date)s)")
+
+update_search=("UPDATE search "
+              "set e_keywords=%(e_keywords)s, description=%(description)s,update_date=%(update_date)s "
+              "where id=%(id)s")
+
 @app.route('/search/<path:searchId>', methods=['DELETE'])
 def deleteSearch(searchId):
     query1=("Delete from search where id=" + searchId)
@@ -26,11 +35,7 @@ def deleteSearch(searchId):
         cursor.close()
         conn.close()
     pass
-    return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-    )
+    return ('', 204)
 
 @app.route('/search', methods=['GET'])
 def querySearch():
@@ -51,7 +56,7 @@ def querySearch():
         for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
             if sid not in results:
                 prices = []
-                results[sid] = {"id":sid, "keywords" : keywords, "ekeywords": e_keywords, "description":desc, "prices":prices}
+                results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices}
             else:
                 prices = results[sid]["prices"]
             prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
@@ -73,7 +78,7 @@ def querySearchById(searchId):
         results = {}
         prices = []
         for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
-            results = {"id":sid, "keywords" : keywords, "ekeywords": e_keywords, "description":desc, "prices":prices}
+            results = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices}
             prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
     finally:
         cursor.close()
@@ -88,7 +93,7 @@ def updateSearch(searchId):
     search = request.json
     cols=[]
     data_search={}
-    ekeywords=""
+    e_keywords=""
     if "keywords" not in search:
         errorJson={}
         errorJson["errorCode"] = "E003"
@@ -97,10 +102,10 @@ def updateSearch(searchId):
     keywords = handleUserInput(search["keywords"])
     cols.append("keywords=%(keywords)s")
     data_search["keywords"] = keywords
-    if "ekeywords" in search:
-        ekeywords = handleUserInput(search["ekeywords"])
+    if "e_keywords" in search:
+        e_keywords = handleUserInput(search["e_keywords"])
     cols.append("e_keywords=%(e_keywords)s")
-    data_search["e_keywords"] = ekeywords
+    data_search["e_keywords"] = e_keywords
     if "description" in search:
         cols.append("description=%(description)s")
         data_search["description"] = search["description"]
@@ -112,7 +117,7 @@ def updateSearch(searchId):
         update_all_search = update_all_search.replace("{COLS}", ",".join(cols))
         cursor.execute(update_all_search, data_search)
         conn.commit()
-        st = threading.Thread(target=scanPrice, args=(keywords,ekeywords, searchId))
+        st = threading.Thread(target=scanPrice, args=(keywords,e_keywords, searchId))
         st.start()        
     except Exception as e:
         errorJson= {}
@@ -122,11 +127,7 @@ def updateSearch(searchId):
     finally:
         cursor.close()
         conn.close()
-    return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-    )    
+    return jsonify(data_search)
 
 @app.route('/search', methods=['POST'])
 def addSearch():
@@ -139,13 +140,13 @@ def addSearch():
     description = None
     if "description" in search:
         description = search["description"]
-    ekeywords = None
-    if "ekeywords" in search:
-        ekeywords = handleUserInput(search["ekeywords"])
+    e_keywords = None
+    if "e_keywords" in search:
+        e_keywords = handleUserInput(search["e_keywords"])
     search["keywords"] = handleUserInput(search["keywords"])
     data_search = {
         'keywords': search["keywords"],
-        'e_keywords': ekeywords,
+        'e_keywords': e_keywords,
         'description': description,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
@@ -157,17 +158,14 @@ def addSearch():
         if searchId == -1:
             cursor.execute(add_search, data_search)
             searchId = cursor.lastrowid
+            data_search["id"] = searchId
         else:
             data_search["id"] = searchId
             cursor.execute(update_search, data_search)
         conn.commit()
-        st = threading.Thread(target=scanPrice, args=(search["keywords"],ekeywords, searchId))
+        st = threading.Thread(target=scanPrice, args=(search["keywords"],e_keywords, searchId))
         st.start()
-        return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-        )
+        return jsonify(data_search)
     except Exception as e:
         errorJson["errorCode"] = "E002"
         errorJson["errorMsg"] = str(e)
@@ -175,6 +173,13 @@ def addSearch():
     finally:
         cursor.close()
         conn.close()
+
+@app.route('/price', methods=['POST'])
+def addPrice():
+    price = request.json
+    if "search_id" not in price or "url" not in price:
+        pass
+    pass
 
 def compareKeywords(keywords):
     query = ("SELECT id, keywords FROM search where ")

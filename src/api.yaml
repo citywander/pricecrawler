@@ -1,0 +1,164 @@
+swagger: "2.0"
+info:
+  description: "This is a price service."
+  version: "1.0.0"
+  title: "Swagger PriceFollow"
+basePath: "/v2"
+tags:
+- name: "search"
+  description: "Follow price by search"
+- name: "user"
+  description: "Operations about user"
+  externalDocs:
+    description: "Find out more about our store"
+    url: "http://swagger.io"
+schemes:
+- "http"
+paths:
+  /search:
+    post:
+      tags:
+      - "search"
+      summary: "Add a search to the store"
+      description: ""
+      operationId: "addSearch"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "search object that needs to be added to the store"
+        required: true
+        schema:
+          $ref: "#/definitions/search"
+      responses:
+        200:
+          description: "Add search successfully"
+          schema:
+            type: object
+            items: 
+              $ref: "#/definitions/search"
+  /search/{searchId}:
+    put:
+      tags:
+      - "search"
+      summary: "Update an existing search"
+      description: ""
+      operationId: "updatePet"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "searchId"
+        in: "path"
+        description: "ID of search to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      - in: "body"
+        name: "body"
+        description: "search object that needs to be added to the store"
+        required: true
+        schema:
+          $ref: "#/definitions/search"
+      responses:
+        200:
+          description: "Get search successfully"
+          schema:
+            type: object
+            items: 
+              $ref: "#/definitions/search"
+    delete:
+      tags:
+      - "search"
+      summary: "Update an existing search"
+      description: ""
+      operationId: "deleteSearcht"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "searchId"
+        in: "path"
+        description: "ID of search to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      responses:
+        400:
+          description: "Invalid ID supplied"
+        404:
+          description: "Pet not found"
+        405:
+          description: "Validation exception" 
+    get:
+      tags:
+      - "search"
+      summary: "get an existing search"
+      description: ""
+      operationId: "getSearcht"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "searchId"
+        in: "path"
+        description: "ID of search to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      responses:
+        200:
+          description: "Add search successfully"
+          schema:
+            type: object
+            items: 
+              $ref: "#/definitions/search"
+  /search?keywords=iphone,7:              
+    get:
+      tags:
+      - "search"
+      summary: "get an existing search"
+      description: ""
+      operationId: "querySearcht"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "keywords"
+        in: "query"
+        description: "search to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      responses:
+        200:
+          description: "Query search successfully"
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/search"               
+definitions:
+  search:
+    type: "object"
+    required:
+    - "keywords"
+    properties:
+      id:
+        type: "integer"
+        example: "iphone,7"    
+      keywords:
+        type: "string"
+        example: "iphone,7"
+      e_keywords:
+        type: "string"
+        example: "plus"
+      description:
+        type: "string"
+        example: "iphone 7 plus 金色"

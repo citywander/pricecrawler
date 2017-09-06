@@ -23,14 +23,6 @@ update_pp = ("UPDATE pp "
              "WHERE id=%(id)s"
              )
 
-add_search=("INSERT INTO search "
-              "(keywords, e_keywords, description, create_date, update_date) "
-              "VALUES (%(keywords)s, %(e_keywords)s, %(description)s, %(create_date)s, %(update_date)s)")
-
-update_search=("UPDATE search "
-              "set e_keywords=%(e_keywords)s, description=%(description)s,update_date=%(update_date)s "
-              "where id=%(id)s")
-
 add_price=("INSERT INTO price "
               "(search_id, product_id, description, src, price, seller, url, create_date, update_date)"
               "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s,  %(seller)s, %(url)s, %(create_date)s, %(update_date)s)")
@@ -218,7 +210,7 @@ def updatePrice(cursor, doc):
     
     pass
        
-def jdProducts(keywords, ekeywords, searchId, productIds, inProductIds):
+def jdProducts(keywords, e_keywords, searchId, productIds, inProductIds):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     setProxy(request)
@@ -241,7 +233,7 @@ def jdProducts(keywords, ekeywords, searchId, productIds, inProductIds):
                 break
         if not searched:
             continue        
-        for kw in ekeywords.split(","):
+        for kw in e_keywords.split(","):
             if kw in values and kw != "":
                 searched = False
                 break
@@ -302,18 +294,18 @@ def deletePriceBySearchId(searchId):
     pass
     
 
-def scanPrice(keywords, ekeywords, searchId):
-    if ekeywords == None:
-        ekeywords = ""
+def scanPrice(keywords, e_keywords, searchId):
+    if e_keywords == None:
+        e_keywords = ""
     query = ("SELECT name, product_id, seller, linkUrl,price FROM pp where ")
     likes = lambda key : " name like '%" + key +"%'" 
     nlikes = lambda key : " name not like '%" + key +"%'"
     likesQuery = list(map(likes, keywords.split(",")))
     inProductIds=[]
-    if ekeywords == "":
+    if e_keywords == "":
         sql = query + " and ".join(likesQuery)
     else:
-        nlikesQuery = list(map(nlikes, ekeywords.split(",")))
+        nlikesQuery = list(map(nlikes, e_keywords.split(",")))
         sql = query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery)
     try:
         conn = connectToDb()
@@ -338,7 +330,7 @@ def scanPrice(keywords, ekeywords, searchId):
             else:    
                 cursor.execute(add_price, data_price)        
         conn.commit()
-        jdProducts(keywords.lower(), ekeywords.lower(), searchId, productIds, inProductIds)
+        jdProducts(keywords.lower(), e_keywords.lower(), searchId, productIds, inProductIds)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()
