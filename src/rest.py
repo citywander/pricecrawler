@@ -2,11 +2,15 @@ import MySQLdb
 import json
 import threading
 from threading import Timer, Lock
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from globUtils import getFormatDate
-from globUtils import connectToDb, logger, retry
+from scanner import scanPrice
+from globUtils import connectToDb, logger, retry, handleUserInput
 
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
+app.config['JSONIFY_MIMETYPE'] = "application/json;charset=UTF-8"
+app.config['LANGUAGES']="zh-CN"
 
 @app.route('/search/<path:searchId>', methods=['DELETE'])
 def deleteSearch(searchId):
@@ -30,14 +34,51 @@ def deleteSearch(searchId):
 
 @app.route('/search', methods=['GET'])
 def querySearch():
+    logger.info("Get Search")
     keywords = request.args.get('keywords')
-    likes = lambda key : " name like '%" + key +"%'" 
-    query = "select keywords,e_keywords, description, price, seller, url, update_date from search pd, price p where pd.id=p.search_id"
+    likes = lambda key : " keywords like '%" + key +"%'" 
+    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date from search s, price p where s.id=p.search_id"
     if not keywords is None:
+        keywords = handleUserInput(keywords)
         likesQuery = list(map(likes, keywords.split(",")))
-        query = query + " and ".join(likesQuery.split(","))
+        query = query  + " and " + " and ".join(likesQuery)
         pass
-    pass
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = {}
+        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
+            if sid not in results:
+                prices = []
+                results[sid] = {"id":sid, "keywords" : keywords, "ekeywords": e_keywords, "description":desc, "prices":prices}
+            else:
+                prices = results[sid]["prices"]
+            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(list(results.values()))
+
+
+@app.route('/search/<path:searchId>', methods=['GET'])
+def querySearchById(searchId):
+    logger.info("Get Search by id " + searchId)
+    keywords = request.args.get('keywords')
+    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date from search s, price p where s.id=p.search_id and s.id=" + searchId
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = {}
+        prices = []
+        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
+            results = {"id":sid, "keywords" : keywords, "ekeywords": e_keywords, "description":desc, "prices":prices}
+            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(results)
 
 @app.route('/search/<path:searchId>', methods=['PUT'])
 def updateSearch(searchId):
@@ -53,13 +94,13 @@ def updateSearch(searchId):
         errorJson["errorCode"] = "E003"
         errorJson["errorMsg"] = "keywords is required"
         return responseError(errorJson, 400)
-    keywords = search["keywords"]
+    keywords = handleUserInput(search["keywords"])
     cols.append("keywords=%(keywords)s")
-    data_search["keywords"] = search["keywords"]
+    data_search["keywords"] = keywords
     if "ekeywords" in search:
-        ekeywords = search["ekeywords"]
-        cols.append("e_keywords=%(e_keywords)s")
-        data_search["e_keywords"] = search["ekeywords"]
+        ekeywords = handleUserInput(search["ekeywords"])
+    cols.append("e_keywords=%(e_keywords)s")
+    data_search["e_keywords"] = ekeywords
     if "description" in search:
         cols.append("description=%(description)s")
         data_search["description"] = search["description"]
@@ -100,7 +141,8 @@ def addSearch():
         description = search["description"]
     ekeywords = None
     if "ekeywords" in search:
-        ekeywords = search["ekeywords"] 
+        ekeywords = handleUserInput(search["ekeywords"])
+    search["keywords"] = handleUserInput(search["keywords"])
     data_search = {
         'keywords': search["keywords"],
         'e_keywords': ekeywords,

@@ -1,8 +1,16 @@
+from rest import app
+import re
+from scanner import initCache
+from scanner import SearchPpProduct
+from scanner import retryScanAllPrice
+
+from rest import app
+from globUtils import logger
+from globUtils import Periodic
+from globUtils import config
 
 
 if __name__ == '__main__':
-    config=configparser.ConfigParser()
-    config.read("cp.ini")
     initCache()
 
     logger.info("Parse PP")
