@@ -5,23 +5,14 @@ import copy
 import time
 import MySQLdb
 import urllib.parse
-import logging
-import datetime
 import threading
 from threading import Timer, Lock
 import configparser
 from flask import Flask, request
+from globUtils import connectToDb, logger, retry
+from rest import app
+from globUtils import getFormatDate
 
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-
-logger = logging.getLogger('ComparePrice')
-logger.setLevel(logging.DEBUG)
-logger.addHandler(ch)
 
 docs = {}
 
@@ -50,19 +41,6 @@ update_price=("UPDATE price "
               "set price=%(price)s, update_date=%(update_date)s "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
-app = Flask(__name__)
-
-def connectToDb():
-    while True:
-        try: 
-            host=config.get("db","host")
-            port=int(config.get("db","port"))
-            user=config.get("db","user")
-            pwd=config.get("db","pwd")
-            return MySQLdb.connect(host=host, port=port, user=user, passwd=pwd, db="prodprice", charset='utf8')
-        except Exception as e:
-            logger.error(e)
-            time.sleep(2)
 
 
 def initCache():
@@ -79,17 +57,23 @@ def initCache():
     
 
 def searchPpProduct(key=""):
+    logger.info("Start scan all pp products")
     url="https://mstore.ppdai.com/product/searchPro"
     pageIndex = 1;
     pageSize = 100
+    onlyFirst = True
     while True:
         payload ={"pageIndex":pageIndex, "pageSize":pageSize,"name":key}
         proContent = getReponseFromPp(url, payload)
         totalPage = proContent["responseContent"]["totalPage"]
         prodList = proContent["responseContent"]["product004List"]
+        if onlyFirst:
+            logger.info("Find " + str(proContent["responseContent"]["totalCount"]) + " products from pp" )
+            onlyFirst = False
+        
         for prod in prodList:
-            #if prod["linkUrl"] in docs:
-            #    continue
+            if prod["linkUrl"] in docs:
+                continue
             prod["name"] = re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", prod["name"])
             del prod["pictureUrl"],prod["iconTypeName"],prod["hotWords"]
             prodId = prod["linkUrl"][9:]
@@ -101,6 +85,7 @@ def searchPpProduct(key=""):
             break
         pageIndex = pageIndex + 1
     pass
+    logger.info("End scan all pp products")
 
 
 def getSeller(prodId):
@@ -305,53 +290,6 @@ def setProxy(request):
     if config.has_option("proxy", "https.proxy"):
         request.set_proxy(config.get("proxy", "https.proxy"), 'https')
 
-@app.route('/search', methods=['POST'])
-def addSearch():
-    search = request.json
-    errorJson = {}
-    if "keywords" not in search:
-        errorJson["errorCode"] = "E001"
-        errorJson["errorMsg"] = "keywords is requried"
-        return responseError(errorJson, 400)
-    description = None
-    if "description" in search:
-        description = search["description"]
-    ekeywords = None
-    if "ekeywords" in search:
-        ekeywords = search["ekeywords"] 
-    data_search = {
-        'keywords': search["keywords"],
-        'e_keywords': ekeywords,
-        'description': description,
-        "create_date": getFormatDate(),
-        "update_date": getFormatDate()
-    }
-    searchId = compareKeywords(search["keywords"])
-    try:
-        conn = connectToDb()
-        cursor = conn.cursor()
-        if searchId == -1:
-            cursor.execute(add_search, data_search)
-            searchId = cursor.lastrowid
-        else:
-            data_search["id"] = searchId
-            cursor.execute(update_search, data_search)
-        conn.commit()
-        st = threading.Thread(target=scanPrice, args=(search["keywords"],ekeywords, searchId))
-        st.start()
-        return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-        )
-    except Exception as e:
-        errorJson["errorCode"] = "E002"
-        errorJson["errorMsg"] = str(e)
-        return responseError(errorJson, 400) 
-    finally:
-        cursor.close()
-        conn.close()
-    
 
 def deletePriceBySearchId(searchId):
     query=("Delete from price where search_id=" + str(searchId))
@@ -365,85 +303,6 @@ def deletePriceBySearchId(searchId):
         conn.close()
     pass
     
-@app.route('/search/<path:searchId>', methods=['DELETE'])
-def deleteSearch(searchId):
-    query1=("Delete from search where id=" + searchId)
-    query2=("Delete from price where search_id=" + searchId)
-    try:
-        conn = connectToDb()
-        cursor = conn.cursor()
-        cursor.execute(query1)
-        cursor.execute(query2)
-        conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
-    pass
-    return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-    )
-
-
-@app.route('/search', methods=['GET'])
-def querySearch():
-    keywords = request.args.get('keywords')
-    likes = lambda key : " name like '%" + key +"%'" 
-    query = "select keywords,e_keywords, description, price, seller, url, update_date from search pd, price p where pd.id=p.search_id"
-    if not keywords is None:
-        likesQuery = list(map(likes, keywords.split(",")))
-        query = query + " and ".join(likesQuery.split(","))
-        pass
-    pass
-
-@app.route('/search/<path:searchId>', methods=['PUT'])
-def updateSearch(searchId):
-    update_all_search=("UPDATE search "
-              "set {COLS}, update_date=%(update_date)s "
-              "where id=%(id)s")    
-    search = request.json
-    cols=[]
-    data_search={}
-    ekeywords=""
-    if "keywords" not in search:
-        errorJson={}
-        errorJson["errorCode"] = "E003"
-        errorJson["errorMsg"] = "keywords is required"
-        return responseError(errorJson, 400)
-    keywords = search["keywords"]
-    cols.append("keywords=%(keywords)s")
-    data_search["keywords"] = search["keywords"]
-    if "ekeywords" in search:
-        ekeywords = search["ekeywords"]
-        cols.append("e_keywords=%(e_keywords)s")
-        data_search["e_keywords"] = search["ekeywords"]
-    if "description" in search:
-        cols.append("description=%(description)s")
-        data_search["description"] = search["description"]
-    data_search["update_date"] = getFormatDate()
-    data_search["id"] = searchId
-    try:
-        conn = connectToDb()
-        cursor = conn.cursor()
-        update_all_search = update_all_search.replace("{COLS}", ",".join(cols))
-        cursor.execute(update_all_search, data_search)
-        conn.commit()
-        st = threading.Thread(target=scanPrice, args=(keywords,ekeywords, searchId))
-        st.start()        
-    except Exception as e:
-        errorJson= {}
-        errorJson["errorCode"] = "E004"
-        errorJson["errorMsg"] = str(e)
-        return responseError(errorJson, 400)         
-    finally:
-        cursor.close()
-        conn.close()
-    return app.response_class(
-            response=json.dumps({"result": "ok"}),
-            status=200,
-            mimetype='application/json'
-    )    
 
 def scanPrice(keywords, ekeywords, searchId):
     if ekeywords == None:
@@ -490,6 +349,7 @@ def scanPrice(keywords, ekeywords, searchId):
 
 def deletePrices(searchId, productIds):
     try:
+        logger.info("Start delete price for products(" + str(productIds) + ")")
         conn = connectToDb()
         cursor = conn.cursor()
         for productId in productIds:
@@ -501,42 +361,18 @@ def deletePrices(searchId, productIds):
         conn.close()          
     pass
 
-def getProductIdsFromPrice(cursor, searchId):
-    query = ("SELECT product_id FROM price where search_id=" + str(searchId))
+def getProductIdsFromPrice(cursor, searchId, src=None):    
+    if src == None:
+        query = ("SELECT product_id FROM price where search_id=" + str(searchId))
+    else:
+        query = ("SELECT product_id FROM price where search_id=" + str(searchId) + " and src='" + src +"'")
     cursor.execute(query)
     productIds = []
     for (productId, ) in cursor:
         productIds.append(str(productId))
     return productIds
 
-def responseError(errorMsg, statusCode):
-    response = app.response_class(
-        response=json.dumps(errorMsg),
-        status=statusCode,
-        mimetype='application/json'
-    )
-    return response
 
-def compareKeywords(keywords):
-    query = ("SELECT id, keywords FROM search where ")
-    keys = keywords.split(",")
-    likes = lambda key : " keywords like '%" + key +"%'" 
-    allQuery = list(map(likes, keys))
-    try:
-        conn = connectToDb()
-        cursor = conn.cursor()
-        cursor.execute(query + " and ".join(allQuery))
-        for (idd, kkeywords) in cursor:
-            if set(keys) == set(kkeywords.split(",")):
-                return idd
-    finally:
-        cursor.close()
-        conn.close()
-    return -1
-
-def getFormatDate():
-    now = datetime.datetime.now()
-    return now.strftime('%Y-%m-%d %H:%M:%S')
 
 class Periodic(object):
 
@@ -568,9 +404,10 @@ class Periodic(object):
         self._stopped = True
         self._timer.cancel()
         self._lock.release()
-        
+
 def scanAllPrice():
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, pp.skuIds from price p left join pp"
+    logger.info("Start scan price")
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, pp.skuIds from price p left join pp "
             "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
@@ -580,27 +417,31 @@ def scanAllPrice():
         if src == 'pp':
             fetchPriceByAttributes(priceId, productId, skuIds.split(","))
         else:
+            if e_keywords == None:
+                e_keywords = ""
             searchs[searchId] = {"keywords" : keywords, "e_keywords" :e_keywords, "productId": productId}
     inProductIds=[]
-    for (searchId, search) in searchs:
-        productIds = getProductIdsFromPrice(cursor, searchId)                
+    for (searchId, search) in searchs.items():
+        productIds = getProductIdsFromPrice(cursor, searchId, "jd")                
         jdProducts(search["keywords"], search["e_keywords"], searchId, productIds, inProductIds)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     pass
+    logger.info("End scan price")
 
 def fetchPriceByAttributes(priceId, productId, attributeIds):
     sku = getSku(attributeIds, productId)
     skuProd = {"price":sku["price"],
                "monthPayments": str(sku["monthPayments"]),
                "months": str(sku["months"]),
+               "product_id": productId,
                "update_date": getFormatDate(),
                "id": priceId}
     
     updatePriceSql = ("update price " 
-                      "set price = %(price)s, monthPayments=%(monthPayments),months=%(months)s, update_date=%(update_date)"
-                      " where id=%(id)s")
+                      "set price = %(price)s, update_date=%(update_date)s "
+                      "where id=%(id)s")
     updatePpSql = ("update pp "
-                   "set price = %(price)s, monthPayments=%(monthPayments),months=%(months)s, update_date=%(update_date) "
+                   "set price = %(price)s, monthPayments=%(monthPayments)s,months=%(months)s, update_date=%(update_date)s "
                    "where product_id=%(product_id)s")
     try:
         conn = connectToDb()
@@ -611,17 +452,8 @@ def fetchPriceByAttributes(priceId, productId, attributeIds):
     finally:
         cursor.close()
         conn.close()
-        
-if __name__ == '__main__':
-    config=configparser.ConfigParser()
-    config.read("cp.ini")
-    logger.info("Initiate Cache")
-    initCache()
 
-    logger.info("Parse PP")
-    thread1 = SearchPpProduct()
-    thread1.start()
-    
-    rt = Periodic(int(config.get("server", "watch.interval")), scanAllPrice)
-      
-    app.run(host='0.0.0.0', port=config.get("server", "listen.port"))
+
+def retryScanAllPrice():
+    retry(scanAllPrice)
+    pass
