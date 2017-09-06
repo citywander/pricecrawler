@@ -2,16 +2,15 @@ import urllib.request
 import json
 import re
 import copy
-import time,sched
+import time
 import MySQLdb
 import urllib.parse
 import logging
 import datetime
 import threading
+from threading import Timer, Lock
 import configparser
 from flask import Flask, request
-from re import search
-from collections import Counter
 
 
 ch = logging.StreamHandler()
@@ -27,8 +26,8 @@ logger.addHandler(ch)
 docs = {}
 
 add_pp = ("INSERT INTO pp "
-              "(product_id, name, skuNames, linkUrl, price, monthPayments, months,seller,create_date, update_date) "
-              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(create_date)s, %(update_date)s)")
+              "(product_id, name, skuNames, skuIds, linkUrl, price, monthPayments, months,seller,create_date, update_date) "
+              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(skuIds)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(create_date)s, %(update_date)s)")
 
 update_pp = ("UPDATE pp "
              "SET price=%(price)s, monthPayments= %(monthPayments)s, skuNames=%(skuNames)s, skuIds=%(skuIds)s, update_date=%(update_date)s "
@@ -89,13 +88,14 @@ def searchPpProduct(key=""):
         totalPage = proContent["responseContent"]["totalPage"]
         prodList = proContent["responseContent"]["product004List"]
         for prod in prodList:
+            #if prod["linkUrl"] in docs:
+            #    continue
             prod["name"] = re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", prod["name"])
             del prod["pictureUrl"],prod["iconTypeName"],prod["hotWords"]
             prodId = prod["linkUrl"][9:]
             prod["seller"] = getSeller(prodId)
             prod["skuNames"] = ""
             prod["skuIds"] = ""
-            insertOrUpdateDB(prod)
             ppProdSku(prodId, prod)
         if pageIndex >= totalPage:
             break
@@ -147,14 +147,13 @@ def ppProdSku(prodId, prod):
             skuIds.append(str(attributeValueId))
             prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
         sku = getSku(attributeIds, prodId)
-        print(str(sku).encode(encoding='utf_8', errors='strict'))
         skuProd = {"name":prodName, "linkUrl": "/product/" + str(sku["id"]), "price":sku["price"], 
                        "monthPayments": str(sku["monthPayments"]), 
                        "months":str(sku["months"]),
                        "skuNames" :",".join(skuNames),
                        "skuIds" :",".join(skuIds),
                        "seller": prod["seller"]}
-        insertOrUpdateDB(skuProd, False)
+        insertOrUpdateDB(skuProd)
         
 def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
     defaultName = prodName
@@ -188,7 +187,7 @@ def getReponseFromPp(url, payload):
             time.sleep(2)
     
 
-def insertOrUpdateDB(doc, init = True):
+def insertOrUpdateDB(doc):
     exist = doc["linkUrl"] in docs
     while True:
         try:
@@ -230,8 +229,13 @@ def insertOrUpdateDB(doc, init = True):
             cursor.close()
             conn.close()  
     
-        
-def jd(keywords, ekeywords, searchId, producctIds, inProductIds):
+
+
+def updatePrice(cursor, doc):
+    
+    pass
+       
+def jdProducts(keywords, ekeywords, searchId, productIds, inProductIds):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     setProxy(request)
@@ -255,9 +259,9 @@ def jd(keywords, ekeywords, searchId, producctIds, inProductIds):
         if not searched:
             continue        
         for kw in ekeywords.split(","):
-           if kw in values and kw != "":
-               searched = False
-               break
+            if kw in values and kw != "":
+                searched = False
+                break
         if not searched:
             continue
         data_price = {
@@ -274,7 +278,7 @@ def jd(keywords, ekeywords, searchId, producctIds, inProductIds):
         try:
             conn = connectToDb()
             cursor = conn.cursor()
-            if ware["wareId"] in producctIds:
+            if ware["wareId"] in productIds:
                 cursor.execute(update_price, data_price)
             else:            
                 cursor.execute(add_price, data_price)
@@ -401,9 +405,9 @@ def updateSearch(searchId):
     search = request.json
     cols=[]
     data_search={}
-    keywords=""
     ekeywords=""
     if "keywords" not in search:
+        errorJson={}
         errorJson["errorCode"] = "E003"
         errorJson["errorMsg"] = "keywords is required"
         return responseError(errorJson, 400)
@@ -457,7 +461,7 @@ def scanPrice(keywords, ekeywords, searchId):
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        productIds = getProductIdsFromPrice(cursor, searchId)        
+        productIds = getProductIdsFromPrice(cursor, searchId)
         cursor.execute(sql)
         for (name, productId, seller,linkeUrl, price) in cursor:
             data_price = {
@@ -477,7 +481,7 @@ def scanPrice(keywords, ekeywords, searchId):
             else:    
                 cursor.execute(add_price, data_price)        
         conn.commit()
-        jd(keywords.lower(), ekeywords.lower(), searchId, productIds, inProductIds)
+        jdProducts(keywords.lower(), ekeywords.lower(), searchId, productIds, inProductIds)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()
@@ -534,6 +538,80 @@ def getFormatDate():
     now = datetime.datetime.now()
     return now.strftime('%Y-%m-%d %H:%M:%S')
 
+class Periodic(object):
+
+    def __init__(self, interval, function, *args, **kwargs):
+        self._lock = Lock()
+        self._timer = None
+        self.function = function
+        self.interval = interval
+        self.args = args
+        self.kwargs = kwargs
+        self._stopped = True
+        if kwargs.pop('autostart', True):
+            self.start()
+
+    def start(self, from_run=False):
+        self._lock.acquire()
+        if from_run or self._stopped:
+            self._stopped = False
+            self._timer = Timer(self.interval, self._run)
+            self._timer.start()
+            self._lock.release()
+
+    def _run(self):
+        self.start(from_run=True)
+        self.function(*self.args, **self.kwargs)
+
+    def stop(self):
+        self._lock.acquire()
+        self._stopped = True
+        self._timer.cancel()
+        self._lock.release()
+        
+def scanAllPrice():
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, pp.skuIds from price p left join pp"
+            "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
+    conn = connectToDb()
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    searchs={}
+    for (priceId, searchId, productId, src, keywords, e_keywords, skuIds) in cursor:
+        if src == 'pp':
+            fetchPriceByAttributes(priceId, productId, skuIds.split(","))
+        else:
+            searchs[searchId] = {"keywords" : keywords, "e_keywords" :e_keywords, "productId": productId}
+    inProductIds=[]
+    for (searchId, search) in searchs:
+        productIds = getProductIdsFromPrice(cursor, searchId)                
+        jdProducts(search["keywords"], search["e_keywords"], searchId, productIds, inProductIds)
+        deletePrices(searchId, set(productIds) - set(inProductIds))
+    pass
+
+def fetchPriceByAttributes(priceId, productId, attributeIds):
+    sku = getSku(attributeIds, productId)
+    skuProd = {"price":sku["price"],
+               "monthPayments": str(sku["monthPayments"]),
+               "months": str(sku["months"]),
+               "update_date": getFormatDate(),
+               "id": priceId}
+    
+    updatePriceSql = ("update price " 
+                      "set price = %(price)s, monthPayments=%(monthPayments),months=%(months)s, update_date=%(update_date)"
+                      " where id=%(id)s")
+    updatePpSql = ("update pp "
+                   "set price = %(price)s, monthPayments=%(monthPayments),months=%(months)s, update_date=%(update_date) "
+                   "where product_id=%(product_id)s")
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(updatePriceSql, skuProd)
+        cursor.execute(updatePpSql, skuProd)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+        
 if __name__ == '__main__':
     config=configparser.ConfigParser()
     config.read("cp.ini")
@@ -544,4 +622,6 @@ if __name__ == '__main__':
     thread1 = SearchPpProduct()
     thread1.start()
     
+    rt = Periodic(int(config.get("server", "watch.interval")), scanAllPrice)
+      
     app.run(host='0.0.0.0', port=config.get("server", "listen.port"))
