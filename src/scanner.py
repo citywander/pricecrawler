@@ -46,6 +46,7 @@ def searchPpProduct(refresh=False):
     pageIndex = 1;
     pageSize = 100
     onlyFirst = True
+    curDocs=set()
     while True:
         payload ={"pageIndex":pageIndex, "pageSize":pageSize,"name":""}
         proContent = getReponseFromPp(url, payload)
@@ -64,12 +65,28 @@ def searchPpProduct(refresh=False):
             prod["seller"] = getSeller(prodId)
             prod["skuNames"] = ""
             prod["skuIds"] = ""
-            ppProdSku(prodId, prod)
+            ppProdSku(prodId, prod, curDocs)
         if pageIndex >= totalPage:
             break
         pageIndex = pageIndex + 1
     pass
+    deleteOldProducts(docs, set(docs.keys()) - curDocs)
     logger.info("End scan all pp products")
+    
+    
+def deleteOldProducts(docs, ids):
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        for idd in ppIds:
+            sql = "delete from pp where product_id=" + idd
+            cursor.execute(sql)
+            del docs[idd]
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    pass
 
 
 def getSeller(prodId):
@@ -78,7 +95,7 @@ def getSeller(prodId):
     proContent = getReponseFromPp(url, payload)
     return proContent["responseContent"]["sellerName"]
 
-def ppProdSku(prodId, prod):
+def ppProdSku(prodId, prod, curDocs):
     url = "https://mstore.ppdai.com/product/getAttribute"
     payload = {"productSkuId": prodId}
     proContent = getReponseFromPp(url, payload)
@@ -122,6 +139,7 @@ def ppProdSku(prodId, prod):
                        "skuNames" :",".join(skuNames),
                        "skuIds" :",".join(skuIds),
                        "seller": prod["seller"]}
+        curDocs.add(sku["linkUrl"][9:])
         insertOrUpdateDB(skuProd)
         
 def getDefaultName(crossIds, attributeNames, attributeValueIds, prodName):
