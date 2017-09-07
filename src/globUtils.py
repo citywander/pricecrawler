@@ -2,10 +2,11 @@ import MySQLdb
 import configparser
 import logging
 import datetime
+import time
 import re
 from threading import Timer, Lock
 
-config=configparser.ConfigParser()
+config=configparser.RawConfigParser()
 config.read("cp.ini")
 
 ch = logging.StreamHandler()

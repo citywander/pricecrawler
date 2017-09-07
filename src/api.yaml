@@ -7,11 +7,8 @@ basePath: "/v2"
 tags:
 - name: "search"
   description: "Follow price by search"
-- name: "user"
-  description: "Operations about user"
-  externalDocs:
-    description: "Find out more about our store"
-    url: "http://swagger.io"
+- name: "price"
+  description: "Product Price" 
 schemes:
 - "http"
 paths:
@@ -32,7 +29,7 @@ paths:
         description: "search object that needs to be added to the store"
         required: true
         schema:
-          $ref: "#/definitions/search"
+          $ref: "#/definitions/addsearch"
       responses:
         200:
           description: "Add search successfully"
@@ -63,7 +60,7 @@ paths:
         description: "search object that needs to be added to the store"
         required: true
         schema:
-          $ref: "#/definitions/search"
+          $ref: "#/definitions/addsearch"
       responses:
         200:
           description: "Get search successfully"
@@ -74,9 +71,9 @@ paths:
     delete:
       tags:
       - "search"
-      summary: "Update an existing search"
+      summary: "Delete an existing search"
       description: ""
-      operationId: "deleteSearcht"
+      operationId: "deleteSearch"
       consumes:
       - "application/json"
       produces:
@@ -144,6 +141,56 @@ paths:
             type: array
             items: 
               $ref: "#/definitions/search"               
+  /price:
+    post:
+      tags:
+      - "price"
+      summary: "Add a price to the store"
+      description: ""
+      operationId: "addPrice"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "price object that needs to be added to the store"
+        required: true
+        schema:
+          $ref: "#/definitions/price"
+      responses:
+        200:
+          description: "Add price successfully"
+          schema:
+            type: object
+            items: 
+              $ref: "#/definitions/price"
+  /price/{priceId}:
+    delete:
+      tags:
+      - "price"
+      summary: "Delete an existing p111rice"
+      description: ""
+      operationId: "deletePrice"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "priceId"
+        in: "path"
+        description: "ID of price to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      responses:
+        400:
+          description: "Invalid ID supplied"
+        404:
+          description: "price not found"
+        405:
+          description: "Validation exception" 
 definitions:
   search:
     type: "object"
@@ -152,13 +199,86 @@ definitions:
     properties:
       id:
         type: "integer"
-        example: "iphone,7"    
+        description: "Search ID, if create, please ignore"
       keywords:
         type: "string"
+        description: "And words, if all words in content, accept"
         example: "iphone,7"
       e_keywords:
         type: "string"
+        description: "Exclusive words, if these words in content, skip"
+        example: "plus"
+      o_keywords:
+        type: "string"
+        description: "Or words, if any word in contect, accept"
         example: "plus"
       description:
         type: "string"
         example: "iphone 7 plus 金色"
+      prices:
+        type: array
+        items:
+          $ref: "#/definitions/price"
+      create_date:
+        type: "string"
+        description: "Create Datetime"
+      update_date:
+        type: "string"
+        description: "Update Datetime"
+  addsearch:
+    type: "object"
+    required:
+    - "keywords"
+    properties:
+      keywords:
+        type: "string"
+        description: "And words, if all words in content, accept"
+        example: "iphone,7"
+      e_keywords:
+        type: "string"
+        description: "Exclusive words, if these words in content, skip"
+        example: "plus"
+      o_keywords:
+        type: "string"
+        description: "Or words, if any word in contect, accept"
+        example: "plus"
+      description:
+        type: "string"
+        example: "iphone 7 plus 金色"
+  price:
+    type: "object"
+    required:
+    - "search_id"
+    - "url"
+    properties:
+      id:
+        type: "integer"
+        description: "Search ID, if create, please ignore"
+      search_id:
+        type: "string"
+        description: "search id"
+        example: "1"
+      product_id:
+        type: "string"
+        description: "product id"
+        example: "1"
+      description:
+        type: "string"
+      src:
+        type: "string"
+        example: "pp|jd"
+      price:
+        type: "number"
+        example: "4099"
+      seller:
+        type: "string"
+        example: "纬雅|京东"
+      url:
+        type: "string"
+        example: "iphone 7 plus 金色"        
+      create_date:
+        type: "string"
+        description: "Create Datetime"
+      update_date:
+        type: "string"
+        description: "Update Datetime"

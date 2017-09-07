@@ -28,29 +28,26 @@ update_price=("UPDATE price "
               "set price=%(price)s, update_date=%(update_date)s "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
-
-
 def initCache():
-    query = ("SELECT id, linkUrl FROM pp")
+    query = ("SELECT id, product_id, name, seller FROM pp")
     try:
         conn=connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        for (idd, linkUrl) in cursor:
-            docs[linkUrl]=idd
+        for (idd, product_id, name, seller) in cursor:
+            docs[str(product_id)]={"id": idd, "name": name, "seller":seller}
     finally:
         cursor.close()
         conn.close()
-    
 
-def searchPpProduct(key=""):
+def searchPpProduct(refresh=False):
     logger.info("Start scan all pp products")
     url="https://mstore.ppdai.com/product/searchPro"
     pageIndex = 1;
     pageSize = 100
     onlyFirst = True
     while True:
-        payload ={"pageIndex":pageIndex, "pageSize":pageSize,"name":key}
+        payload ={"pageIndex":pageIndex, "pageSize":pageSize,"name":""}
         proContent = getReponseFromPp(url, payload)
         totalPage = proContent["responseContent"]["totalPage"]
         prodList = proContent["responseContent"]["product004List"]
@@ -59,11 +56,11 @@ def searchPpProduct(key=""):
             onlyFirst = False
         
         for prod in prodList:
-            if prod["linkUrl"] in docs:
+            prodId = prod["linkUrl"][9:]
+            if prodId in docs and not refresh:
                 continue
             prod["name"] = re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", prod["name"])
             del prod["pictureUrl"],prod["iconTypeName"],prod["hotWords"]
-            prodId = prod["linkUrl"][9:]
             prod["seller"] = getSeller(prodId)
             prod["skuNames"] = ""
             prod["skuIds"] = ""
@@ -160,13 +157,14 @@ def getReponseFromPp(url, payload):
     
 
 def insertOrUpdateDB(doc):
-    exist = doc["linkUrl"] in docs
+    productId=doc["linkUrl"][9:]
+    exist = productId in docs
     while True:
         try:
             conn = connectToDb()
             cursor = conn.cursor()
             if exist:
-                result = docs[doc["linkUrl"]]
+                result = docs[productId]["id"]
                 data_pp = {
                     'skuNames': doc["skuNames"],
                     'skuIds': doc["skuIds"],
@@ -178,8 +176,9 @@ def insertOrUpdateDB(doc):
                 }
                 cursor.execute(update_pp, data_pp)
             else:
+                product_id = doc["linkUrl"][9:]
                 data_pp = {
-                    'product_id': doc["linkUrl"][9:],
+                    'product_id': product_id,
                     'name': doc["name"],
                     'skuNames': doc["skuNames"],
                     'skuIds': doc["skuIds"],
@@ -190,9 +189,10 @@ def insertOrUpdateDB(doc):
                     'seller': doc["seller"],
                     'update_date': getFormatDate(),
                     'create_date': getFormatDate()
-                }
+                }                
                 cursor.execute(add_pp, data_pp)
-            conn.commit()
+                docs[product_id] = {"id": cursor.lastrowid, "name": doc["name"], "seller":doc["seller"]}
+            conn.commit()            
             break
         except Exception as e:
             logger.error(e)
@@ -202,10 +202,38 @@ def insertOrUpdateDB(doc):
             conn.close()  
     
 
-
-def updatePrice(cursor, doc):
-    
-    pass
+def jdProductsByUrl(search_id, product_id, url):
+    request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
+    setProxy(request)
+    response = urllib.request.urlopen(request)
+    lines = response.readlines()
+    isStart = False
+    resContent = {}
+    description = ""
+    price = -1
+    for line in lines:
+        strLine = line.decode("utf-8")
+        if "keywords" in strLine:
+            description = strLine[strLine.index("CONTENT") + 9: strLine.index(">") -1 ]
+        if "big-price" in strLine:
+            price = strLine[strLine.index(">") + 1: strLine.index("/") -1 ]
+    data_price = {
+        'price': price,
+        'description': description,
+        "update_date": getFormatDate()
+    }
+    update_price=("UPDATE price "
+              "set price=%(price)s, description=%(description)s, update_date=%(update_date)s "
+              "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(update_price, data_price)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    pass            
        
 def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProductIds):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
@@ -237,7 +265,7 @@ def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProduct
         if not searched:
             continue
         searched = False
-        for kw in e_keywords.split(","):
+        for kw in o_keywords.split(","):
             if kw in values and kw != "":
                 searched = True
                 break
@@ -273,7 +301,7 @@ def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProduct
         pass
     
 
-class SearchPpProduct (threading.Thread):
+class SearchPpProductThread (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
       
@@ -305,9 +333,12 @@ def deletePriceBySearchId(searchId):
 def scanPrice(keywords, e_keywords, o_keywords, searchId):
     if e_keywords == None:
         e_keywords = ""
+    if o_keywords == None:
+        o_keywords = ""        
     query = ("SELECT name, product_id, seller, linkUrl,price FROM pp where ")
     likes = lambda key : " name like '%" + key +"%'" 
     nlikes = lambda key : " name not like '%" + key +"%'"
+    olikes = lambda key : " name like '%" + key +"%'"
     likesQuery = list(map(likes, keywords.split(",")))
     inProductIds=[]
     if e_keywords == "":
@@ -317,8 +348,9 @@ def scanPrice(keywords, e_keywords, o_keywords, searchId):
         sql = query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery)
     
     if o_keywords != "":
-        nlikesQuery = list(map(nlikes, o_keywords.split(",")))
-        sql = query + " and " +"(" +" or ".join(nlikesQuery) +")"        
+        nlikesQuery = list(map(olikes, o_keywords.split(",")))
+        sql = sql + " and " +"(" +" or ".join(nlikesQuery) +")" 
+    print(sql)       
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -332,7 +364,7 @@ def scanPrice(keywords, e_keywords, o_keywords, searchId):
                 'seller': seller,
                 'description': name,
                 'src': "pp",
-                'url': "https://mstore.ppdai.com/" + linkeUrl,
+                'url': "https://mstore.ppdai.com" + linkeUrl,
                 "create_date": getFormatDate(),
                 "update_date": getFormatDate()
             }
@@ -377,23 +409,23 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 
 def scanAllPrice():
     logger.info("Start scan price")
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, pp.skuIds from price p left join pp "
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto from price p left join pp "
             "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
     cursor.execute(sql)
     searchs={}
-    for (priceId, searchId, productId, src, keywords, e_keywords, skuIds) in cursor:
+    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto) in cursor:
         if src == 'pp':
             fetchPriceByAttributes(priceId, productId, skuIds.split(","))
         else:
             if e_keywords == None:
                 e_keywords = ""
-            searchs[searchId] = {"keywords" : keywords, "e_keywords" :e_keywords, "productId": productId}
+            searchs[searchId] = {"keywords" : keywords, "e_keywords" :e_keywords, "o_keywords" :o_keywords, "productId": productId, "is_auto":is_auto }
     inProductIds=[]
     for (searchId, search) in searchs.items():
-        productIds = getProductIdsFromPrice(cursor, searchId, "jd")                
-        jdProducts(search["keywords"], search["e_keywords"], searchId, productIds, inProductIds)
+        productIds = getProductIdsFromPrice(cursor, searchId, "jd")
+        jdProducts(search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     pass
     logger.info("End scan price")
@@ -427,3 +459,4 @@ def fetchPriceByAttributes(priceId, productId, attributeIds):
 def retryScanAllPrice():
     retry(scanAllPrice)
     pass
+

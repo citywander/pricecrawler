@@ -1,5 +1,6 @@
 from scanner import initCache
-from scanner import SearchPpProduct
+from scanner import SearchPpProductThread
+from scanner import searchPpProduct
 from scanner import retryScanAllPrice
 
 from rest import app
@@ -12,9 +13,10 @@ if __name__ == '__main__':
     initCache()
 
     logger.info("Parse PP")
-    thread1 = SearchPpProduct()
-    thread1.start()
+    #thread1 = SearchPpProduct()
+    #thread1.start()
     
     rt = Periodic(int(config.get("server", "watch.interval")), retryScanAllPrice)
+    rt = Periodic(int(config.get("server", "watch.pp.interval")), searchPpProduct, True)
       
     app.run(host='0.0.0.0', port=config.get("server", "listen.port"))
