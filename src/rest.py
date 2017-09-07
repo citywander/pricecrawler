@@ -19,6 +19,11 @@ update_search=("UPDATE search "
               "set e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s,update_date=%(update_date)s "
               "where id=%(id)s")
 
+add_price=("INSERT INTO price "
+            "(product_id, search_id, src, seller, create_date,update_date) "
+            "VALUES(%(product_id)s, %(search_id)s, %(src)s, %(seller)s, %(create_date)s, %(update_date)s)")
+
+
 @app.route('/search/<path:searchId>', methods=['DELETE'])
 def deleteSearch(searchId):
     query1=("Delete from search where id=" + searchId)
@@ -180,9 +185,58 @@ def addPrice():
     if "search_id" not in price:
         return responseError("E0001", "search_id is required" ,  404)
     if "url" not in price:
-        return responseError("E0002", "url is required" ,  404)       
-    
+        return responseError("E0002", "url is required" ,  404)
+    if "seller" not in price:
+        return responseError("E0003", "seller is required" ,  404)    
+    search = getSearchById(price["search_id"])   
+    if search == None:
+        return responseError("E0004", "search can't be found" ,  404)
+    if search["is_auto"] == 1:
+        return responseError("E0005", "This search is handled by system" ,  404)
+    src = "pp"
+    url = price["url"]
+    if "jd" in url:
+        src = "jd"
+    product_id = url[url.rindex("/") + 1:url.rindex(".")]
+    price_data={
+        "product_id" : product_id,
+        "search_id" : price["search_id"],
+        "url": url,
+        "src":src,
+        "create_date": getFormatDate(),
+        "update_date": getFormatDate()        
+    }
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        if searchId == -1:
+            cursor.execute(add_price, price_data)
+            searchId = cursor.lastrowid
+            price_data["id"] = searchId
+        else:
+            price_data["id"] = searchId
+            cursor.execute(update_search, price_data)
+        conn.commit()
+    except Exception as e:
+        return responseError("E002", str(e),  400) 
+    finally:
+        cursor.close()
+        conn.close()    
     pass
+
+
+def getSearchById(searchId):
+    logger.info("Get Search by id " + searchId)
+    query = "select id, is_auto from search id=" + searchId
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        row = cursor.fetchone()
+        return row
+    finally:
+        cursor.close()
+        conn.close()
 
 def compareKeywords(keywords):
     query = ("SELECT id, keywords FROM search where ")
