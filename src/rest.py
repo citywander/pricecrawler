@@ -50,7 +50,7 @@ def querySearch():
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date from search s left join price p on s.id=p.search_id"
+    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto from search s left join price p on s.id=p.search_id"
     if not keywords is None:
         keywords = handleUserInput(keywords)
         likesQuery = list(map(likes, keywords.split(",")))
@@ -61,10 +61,10 @@ def querySearch():
         cursor = conn.cursor()
         cursor.execute(query)
         results = {}
-        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
+        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto) in cursor:
             if sid not in results:
                 prices = []
-                results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices}
+                results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
             else:
                 prices = results[sid]["prices"]
             if pid != None:
@@ -79,7 +79,7 @@ def querySearch():
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
     keywords = request.args.get('keywords')
-    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -87,9 +87,9 @@ def querySearchById(searchId):
         results = {}
         prices = []
         empty = True
-        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate) in cursor:
+        for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto) in cursor:
             empty = False
-            results = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices}
+            results = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords": o_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
             if pid != None:
                 prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
         if empty:
