@@ -3,11 +3,8 @@ import json
 import re
 import copy
 import time
-import MySQLdb
 import urllib.parse
 import threading
-import configparser
-from flask import Flask, request
 from globUtils import connectToDb, logger, retry
 from globUtils import getFormatDate, config
 
@@ -210,7 +207,7 @@ def updatePrice(cursor, doc):
     
     pass
        
-def jdProducts(keywords, e_keywords, searchId, productIds, inProductIds):
+def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProductIds):
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     setProxy(request)
@@ -239,6 +236,17 @@ def jdProducts(keywords, e_keywords, searchId, productIds, inProductIds):
                 break
         if not searched:
             continue
+        searched = False
+        for kw in e_keywords.split(","):
+            if kw in values and kw != "":
+                searched = True
+                break
+        if not searched:
+            continue        
+        jdself = config.get("server", "jd.only.self")
+        if jdself.lower() == "true" and not ware["self"]:
+            continue
+            
         data_price = {
             'search_id': searchId,
             'product_id': ware["wareId"],
@@ -294,7 +302,7 @@ def deletePriceBySearchId(searchId):
     pass
     
 
-def scanPrice(keywords, e_keywords, searchId):
+def scanPrice(keywords, e_keywords, o_keywords, searchId):
     if e_keywords == None:
         e_keywords = ""
     query = ("SELECT name, product_id, seller, linkUrl,price FROM pp where ")
@@ -307,6 +315,10 @@ def scanPrice(keywords, e_keywords, searchId):
     else:
         nlikesQuery = list(map(nlikes, e_keywords.split(",")))
         sql = query + " and ".join(likesQuery) + " and " + " and ".join(nlikesQuery)
+    
+    if o_keywords != "":
+        nlikesQuery = list(map(nlikes, o_keywords.split(",")))
+        sql = query + " and " +"(" +" or ".join(nlikesQuery) +")"        
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -330,7 +342,7 @@ def scanPrice(keywords, e_keywords, searchId):
             else:    
                 cursor.execute(add_price, data_price)        
         conn.commit()
-        jdProducts(keywords.lower(), e_keywords.lower(), searchId, productIds, inProductIds)
+        jdProducts(keywords.lower(), e_keywords.lower(), o_keywords.lower(), searchId, productIds, inProductIds)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()

@@ -1,11 +1,9 @@
-import MySQLdb
 import json
 import threading
-from threading import Timer, Lock
 from flask import Flask, request, jsonify
 from globUtils import getFormatDate
 from scanner import scanPrice
-from globUtils import connectToDb, logger, retry, handleUserInput
+from globUtils import connectToDb, logger, handleUserInput
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
@@ -14,11 +12,11 @@ app.config['LANGUAGES']="zh-CN"
 
 
 add_search=("INSERT INTO search "
-              "(keywords, e_keywords, description, create_date, update_date) "
-              "VALUES (%(keywords)s, %(e_keywords)s, %(description)s, %(create_date)s, %(update_date)s)")
+              "(keywords, e_keywords, o_keywords, description, is_auto, create_date, update_date) "
+              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(create_date)s, %(update_date)s)")
 
 update_search=("UPDATE search "
-              "set e_keywords=%(e_keywords)s, description=%(description)s,update_date=%(update_date)s "
+              "set e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s,update_date=%(update_date)s "
               "where id=%(id)s")
 
 @app.route('/search/<path:searchId>', methods=['DELETE'])
@@ -94,11 +92,9 @@ def updateSearch(searchId):
     cols=[]
     data_search={}
     e_keywords=""
+    o_keywords=""
     if "keywords" not in search:
-        errorJson={}
-        errorJson["errorCode"] = "E003"
-        errorJson["errorMsg"] = "keywords is required"
-        return responseError(errorJson, 400)
+        return responseError("E003", "keywords is required" ,  404)
     keywords = handleUserInput(search["keywords"])
     cols.append("keywords=%(keywords)s")
     data_search["keywords"] = keywords
@@ -106,6 +102,11 @@ def updateSearch(searchId):
         e_keywords = handleUserInput(search["e_keywords"])
     cols.append("e_keywords=%(e_keywords)s")
     data_search["e_keywords"] = e_keywords
+    if "o_keywords" in search:
+        o_keywords = handleUserInput(search["o_keywords"])
+    cols.append("o_keywords=%(o_keywords)s")
+    data_search["o_keywords"] = o_keywords
+    
     if "description" in search:
         cols.append("description=%(description)s")
         data_search["description"] = search["description"]
@@ -117,13 +118,10 @@ def updateSearch(searchId):
         update_all_search = update_all_search.replace("{COLS}", ",".join(cols))
         cursor.execute(update_all_search, data_search)
         conn.commit()
-        st = threading.Thread(target=scanPrice, args=(keywords,e_keywords, searchId))
+        st = threading.Thread(target=scanPrice, args=(keywords,e_keywords, o_keywords, searchId))
         st.start()        
     except Exception as e:
-        errorJson= {}
-        errorJson["errorCode"] = "E004"
-        errorJson["errorMsg"] = str(e)
-        return responseError(errorJson, 400)         
+        return responseError("E004", str(e),  400)
     finally:
         cursor.close()
         conn.close()
@@ -132,22 +130,26 @@ def updateSearch(searchId):
 @app.route('/search', methods=['POST'])
 def addSearch():
     search = request.json
-    errorJson = {}
     if "keywords" not in search:
-        errorJson["errorCode"] = "E001"
-        errorJson["errorMsg"] = "keywords is requried"
-        return responseError(errorJson, 400)
+        return responseError("E003", "keywords is required" ,  404)
     description = None
     if "description" in search:
         description = search["description"]
     e_keywords = None
     if "e_keywords" in search:
         e_keywords = handleUserInput(search["e_keywords"])
+    if "o_keywords" in search:
+        o_keywords = handleUserInput(search["o_keywords"])
+    is_auto = 0
+    if "is_auto" in search:
+        is_auto = search["is_auto"] != 0 or search["is_auto"] != "0"                  
     search["keywords"] = handleUserInput(search["keywords"])
     data_search = {
         'keywords': search["keywords"],
         'e_keywords': e_keywords,
+        'o_keywords': o_keywords,
         'description': description,
+        'is_auto': is_auto,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
     }
@@ -163,13 +165,11 @@ def addSearch():
             data_search["id"] = searchId
             cursor.execute(update_search, data_search)
         conn.commit()
-        st = threading.Thread(target=scanPrice, args=(search["keywords"],e_keywords, searchId))
+        st = threading.Thread(target=scanPrice, args=(search["keywords"],e_keywords, o_keywords, searchId))
         st.start()
         return jsonify(data_search)
     except Exception as e:
-        errorJson["errorCode"] = "E002"
-        errorJson["errorMsg"] = str(e)
-        return responseError(errorJson, 400) 
+        return responseError("E002", str(e),  400) 
     finally:
         cursor.close()
         conn.close()
@@ -177,8 +177,11 @@ def addSearch():
 @app.route('/price', methods=['POST'])
 def addPrice():
     price = request.json
-    if "search_id" not in price or "url" not in price:
-        pass
+    if "search_id" not in price:
+        return responseError("E0001", "search_id is required" ,  404)
+    if "url" not in price:
+        return responseError("E0002", "url is required" ,  404)       
+    
     pass
 
 def compareKeywords(keywords):
@@ -198,7 +201,10 @@ def compareKeywords(keywords):
         conn.close()
     return -1
         
-def responseError(errorMsg, statusCode):
+def responseError(errorCode, errorMsg, statusCode):
+    errorJson = {}
+    errorJson["errorCode"] = errorCode
+    errorJson["errorMsg"] = errorMsg
     response = app.response_class(
         response=json.dumps(errorMsg),
         status=statusCode,

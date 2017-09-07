@@ -1,5 +1,3 @@
-from rest import app
-import re
 from scanner import initCache
 from scanner import SearchPpProduct
 from scanner import retryScanAllPrice
