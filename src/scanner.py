@@ -234,7 +234,10 @@ def insertOrUpdateDB(doc):
 
 
 def jdKeywordsPriceByUrl(url):
-    request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
+    headers={'content-type': 'application/json;charset=UTF-8', 
+             "Accept": "application/json", 
+             "Cookie":'JAMCookie=true; USER_FLAG_CHECK=85b0b2409f79d6915479702195a7f7fe; sid=8f905c0ea3d730a68dc2d2bb7a142e4c; __jda=181809404.15048617124911937256625.1504861712.1504861712.1504861712.1; __jdb=181809404.6.15048617124911937256625|1.1504861712; __jdv=181809404|direct|-|none|-|1504861712492; __jdc=181809404; mba_muid=15048617124911937256625; mba_sid=15048617124924978589409612432.6;'}
+    request = urllib.request.Request(url, headers=headers)
     setProxy(request)
     response = urllib.request.urlopen(request)
     lines = response.readlines()
@@ -276,6 +279,10 @@ def jdProductsByUrl(search_id, product_id, url):
        
 def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProductIds):
     jdself = config.get("server", "jd.only.self")
+    jdtwo = config.get("server", "jd.two")
+    jdInter = config.get("server", "jd.international")
+    twoword=config.get("words", "two")
+ 
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     setProxy(request)
@@ -296,31 +303,20 @@ def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProduct
         searched = True
         if jdself.lower() == "true" and not ware["self"]:
             continue
+        if jdtwo.lower() == "false" and twoword in ware["wname"]:
+            continue        
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
-        result = jdKeywordsPriceByUrl(itemUrl)
-        description = result["description"].lower()
-        for kw in keywords.split(","):
-            if kw not in description:
-                searched = False
-                break
-        if not searched:
-            continue        
-        for kw in e_keywords.split(","):
-            if kw in description and kw != "":
-                searched = False
-                break
-        if not searched:
+        if jdInter.lower() == "false" and ware["international"]:
             continue
-        searched = False
-        if o_keywords == "" or o_keywords == None:
-            searched = True
-        for kw in o_keywords.split(","):
-            if kw in description and kw != "":
-                searched = True
-                break
-        if not searched:
-            continue        
-       
+        if ware["international"]:
+            itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
+        print(itemUrl)
+        description = ware["wname"]
+        if not matchKeywords(str(ware.values()).lower(), keywords, e_keywords, o_keywords):
+            result = jdKeywordsPriceByUrl(itemUrl)
+            description = result["description"].lower()
+            if not matchKeywords(description, keywords, e_keywords, o_keywords):
+                continue
         data_price = {
             'search_id': searchId,
             'product_id': ware["wareId"],
@@ -345,7 +341,25 @@ def jdProducts(keywords, e_keywords, o_keywords, searchId, productIds, inProduct
             cursor.close()
             conn.close()
         pass
-    
+ 
+ 
+def matchKeywords(description, keywords, e_keywords, o_keywords):
+    for kw in keywords.split(","):
+        if kw not in description:
+            return False
+    for kw in e_keywords.split(","):
+        if kw in description and kw != "":
+            return False
+    searched = False
+    if o_keywords == "" or o_keywords == None:
+        searched = True
+    for kw in o_keywords.split(","):
+        if kw in description and kw != "":
+            searched = True
+            break
+    if not searched:
+        return False
+    return True   
 
 class SearchPpProductThread (threading.Thread):
     def __init__(self):
@@ -361,7 +375,6 @@ def setProxy(request):
     
     if config.has_option("proxy", "https.proxy"):
         request.set_proxy(config.get("proxy", "https.proxy"), 'https')
-
 
 def deletePriceBySearchId(searchId):
     query=("Delete from price where search_id=" + str(searchId))
@@ -508,4 +521,3 @@ def fetchPriceByAttributes(priceId, productId, attributeIds):
 def retryScanAllPrice():
     retry(scanAllPrice)
     pass
-

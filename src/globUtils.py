@@ -7,7 +7,7 @@ import re
 from threading import Timer, Lock
 
 config=configparser.RawConfigParser()
-config.read("cp.ini")
+config.read("cp.ini", "utf8")
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
