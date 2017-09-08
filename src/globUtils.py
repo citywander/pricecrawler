@@ -12,7 +12,7 @@ config.read("cp.ini")
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(filename)s - [line:%(lineno)d] - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 
 logger = logging.getLogger('ComparePrice')
@@ -51,6 +51,7 @@ def getFormatDate():
 def handleUserInput(content):
     if content == None:
         return None
+    content=content.lower()
     arr = []
     values = re.split(",| +", content)
     for val in values:

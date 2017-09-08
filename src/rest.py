@@ -1,5 +1,4 @@
 import json
-import threading
 import yaml
 from flask import Flask, request, jsonify
 from globUtils import getFormatDate
@@ -147,6 +146,7 @@ def updateSearch(searchId):
         if is_auto:
             scanPrice(keywords,e_keywords, o_keywords, searchId)
     except Exception as e:
+        logger.error(str(e))
         return responseError("G0001", str(e))
     finally:
         cursor.close()
@@ -196,7 +196,8 @@ def addSearch():
         scanPrice(search["keywords"],e_keywords, o_keywords, searchId)
         return querySearchById(searchId)
     except Exception as e:
-        return responseError("G0001", str(e)) 
+        logger.error(str(e))
+        return responseError("G0001", (), str(e)) 
     finally:
         cursor.close()
         conn.close()
@@ -255,6 +256,7 @@ def addPrice():
         price_data["id"] = priceId
         return jsonify(price_data)        
     except Exception as e:
+        logger.error(str(e))
         return responseError("G0001", (), str(e)) 
     finally:
         cursor.close()
@@ -265,8 +267,8 @@ def addPrice():
 def getPriceByProduct(cursor, product_id, search_id):    
     query = ("SELECT id FROM price where search_id=" + str(search_id) + " and product_id=" + str(product_id))
     cursor.execute(query)
-    for (id, ) in cursor:
-        return id
+    for (priceId, ) in cursor:
+        return priceId
     return -1
 
 

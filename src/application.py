@@ -1,4 +1,4 @@
-from scanner import initCache
+from scanner import refresProductCache
 from scanner import SearchPpProductThread
 from scanner import searchPpProduct
 from scanner import retryScanAllPrice
@@ -10,11 +10,11 @@ from globUtils import config
 
 
 if __name__ == '__main__':
-    initCache()
+    refresProductCache()
 
     logger.info("Parse PP")
-    #thread1 = SearchPpProduct()
-    #thread1.start()
+    thread1 = SearchPpProductThread()
+    thread1.start()
     
     rt = Periodic(int(config.get("server", "watch.interval")), retryScanAllPrice)
     rt = Periodic(int(config.get("server", "watch.pp.interval")), searchPpProduct, True)

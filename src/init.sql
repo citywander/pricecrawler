@@ -1,5 +1,4 @@
 CREATE DATABASE IF NOT EXISTS prodprice;
-CREATE DATABASE `prodprice` /*!40100 DEFAULT CHARACTER SET latin1 */;
 CREATE TABLE `pp` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `product_id` bigint(20) DEFAULT NULL,
@@ -14,7 +13,8 @@ CREATE TABLE `pp` (
   `create_date` datetime DEFAULT NULL,
   `update_date` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `id_UNIQUE` (`id`)
+  UNIQUE KEY `id_UNIQUE` (`id`),
+  UNIQUE KEY `product_id_UNIQUE` (`product_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23462 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `price` (
