@@ -2,7 +2,7 @@ import json
 import yaml
 from flask import Flask, request, jsonify
 from globUtils import getFormatDate
-from scanner import scanPrice, docs
+from scanner import scanPrice, docs, getReponseFromPp, insertOrUpdateDB, matchKeywords
 from globUtils import connectToDb, logger, handleUserInput, config
 
 app = Flask(__name__)
@@ -12,11 +12,11 @@ app.config['LANGUAGES']="zh-CN"
 
 
 add_search=("INSERT INTO search "
-              "(keywords, e_keywords, o_keywords, description, is_auto, create_date, update_date) "
-              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(is_auto)s, %(create_date)s, %(update_date)s)")
+              "(keywords, e_keywords, o_keywords, description, product_id, is_auto, create_date, update_date) "
+              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(product_id)s, %(is_auto)s, %(create_date)s, %(update_date)s)")
 
 update_search=("UPDATE search "
-              "set e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s,update_date=%(update_date)s "
+              "set keywords=%(keywords)s, e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s,update_date=%(update_date)s "
               "where id=%(id)s")
 
 add_price=("INSERT INTO price "
@@ -97,67 +97,26 @@ def querySearchById(searchId):
         cursor.close()
         conn.close()
     return jsonify(results)
-
-@app.route('/search/<path:searchId>', methods=['PUT'])
-def updateSearch(searchId):
-    dbsearch = getSearchById(searchId)
-    if dbsearch == None:
-        return responseError("E0001", (searchId,))
-    update_all_search=("UPDATE search "
-              "set {COLS}, update_date=%(update_date)s "
-              "where id=%(id)s")    
-    search = request.json
-    cols=[]
-    data_search={}
-    e_keywords=""
-    o_keywords=""
-    if "keywords" not in search:
-        return responseError("E0002")
-    keywords = handleUserInput(search["keywords"])
-    cols.append("keywords=%(keywords)s")
-    data_search["keywords"] = keywords
-    if "e_keywords" in search:
-        e_keywords = handleUserInput(search["e_keywords"])
-    cols.append("e_keywords=%(e_keywords)s")
-    data_search["e_keywords"] = e_keywords
-    if "o_keywords" in search:
-        o_keywords = handleUserInput(search["o_keywords"])
-    cols.append("o_keywords=%(o_keywords)s")
-    data_search["o_keywords"] = o_keywords
     
-    if "description" in search:
-        cols.append("description=%(description)s")
-        data_search["description"] = search["description"]
-    is_auto = dbsearch["is_auto"]
-    if "is_auto" in search:
-        cols.append("is_auto=%(is_auto)s")
-        data_search["is_auto"] = search["is_auto"]
-        is_auto = int(search["is_auto"])
-                
-    data_search["update_date"] = getFormatDate()
-    data_search["id"] = searchId
-    try:
-        conn = connectToDb()
-        cursor = conn.cursor()
-        update_all_search = update_all_search.replace("{COLS}", ",".join(cols))
-        cursor.execute(update_all_search, data_search)
-        conn.commit()
-        
-        if is_auto:
-            scanPrice(keywords,e_keywords, o_keywords, searchId)
-    except Exception as e:
-        logger.error(str(e))
-        return responseError("G0001", str(e))
-    finally:
-        cursor.close()
-        conn.close()
-    return querySearchById(searchId)
 
 @app.route('/search', methods=['POST'])
 def addSearch():
     search = request.json
     if "keywords" not in search:
         return responseError("E0002", ("keywords",))
+    if "product_id" in search:
+        product_id = search["product_id"]
+        url = "/product/" + product_id        
+    else:
+        if "url" not in search:
+            return responseError("E0004")
+        else:
+            url = search["url"]
+            product_id = url[url.rindex("/") + 1:]
+            url = "/product/" + product_id       
+        
+    if not newPp(product_id):
+        return responseError("E0003")
     description = None
     if "description" in search:
         description = search["description"]
@@ -172,7 +131,11 @@ def addSearch():
         if search["is_auto"] != 0 or search["is_auto"] != "0":
             is_auto = 0                  
     search["keywords"] = handleUserInput(search["keywords"])
+    huiyaDescription=docs[product_id]["name"]
+    if not matchKeywords(huiyaDescription, search["keywords"], e_keywords, o_keywords):
+        return responseError("E0005", (search["keywords"],)) 
     data_search = {
+        "product_id":product_id,
         'keywords': search["keywords"],
         'e_keywords': e_keywords,
         'o_keywords': o_keywords,
@@ -181,7 +144,7 @@ def addSearch():
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
     }
-    searchId = compareKeywords(search["keywords"])
+    searchId = getSearchByProductId(product_id)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -193,7 +156,7 @@ def addSearch():
             data_search["id"] = searchId
             cursor.execute(update_search, data_search)
         conn.commit()
-        scanPrice(search["keywords"],e_keywords, o_keywords, searchId)
+        scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId)
         return querySearchById(searchId)
     except Exception as e:
         logger.error(str(e))
@@ -201,6 +164,37 @@ def addSearch():
     finally:
         cursor.close()
         conn.close()
+        
+def newPp(product_id):
+    if product_id in docs:
+        return True
+    url="https://mstore.ppdai.com/product/getSkuProDeatils"    
+    payload = {"productSkuId": product_id}
+    res = getReponseFromPp(url, payload)  
+    sku=res["responseContent"]
+    if sku is None:
+        return False
+    url = "https://mstore.ppdai.com/product/getAttribute"
+    payload = {"productSkuId": product_id}
+    proContent = getReponseFromPp(url, payload)
+    attrs={}
+    for attributes in proContent["responseContent"]:
+        for attribute in attributes["attributeList"]:
+            attrs[attribute["attributeValueId"]] = attribute["attributeValue"]
+    skuNames=[]
+    skuIds=[]
+    for (valueId, value) in attrs.items():
+        if value in sku["skuName"]:
+            skuNames.append(value)
+            skuIds.append(str(valueId))
+    skuProd = {"name":sku["proName"], "linkUrl": "/product/" + product_id, "price":sku["price"], 
+           "monthPayments": str(sku["monthPayments"]), 
+           "months":str(sku["months"]),
+           "skuNames" :",".join(skuNames),
+           "skuIds" :",".join(skuIds),
+           "seller": sku["seller"]}
+    insertOrUpdateDB(skuProd)
+    return True    
 
 @app.route('/price', methods=['POST'])
 def addPrice():
@@ -300,18 +294,14 @@ def getSearchById(searchId):
         cursor.close()
         conn.close()
 
-def compareKeywords(keywords):
-    query = ("SELECT id, keywords FROM search where ")
-    keys = keywords.split(",")
-    likes = lambda key : " keywords like '%" + key +"%'" 
-    allQuery = list(map(likes, keys))
+def getSearchByProductId(product_id):
+    query = ("SELECT id FROM search where product_id=" + product_id)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        cursor.execute(query + " and ".join(allQuery))
-        for (idd, kkeywords) in cursor:
-            if set(keys) == set(kkeywords.split(",")):
-                return idd
+        cursor.execute(query)
+        for (idd, ) in cursor:
+            return idd;
     finally:
         cursor.close()
         conn.close()
@@ -327,14 +317,17 @@ def api():
             print(exc)
     pass 
         
-def responseError(errorCode, args, message=None):
+def responseError(errorCode, args=None, message=None):
     errorMsg = config.get("error", errorCode)
     msgs = errorMsg.split("-")
     if message != None:
         msgs[1] = message
     errorJson = {}
     errorJson["errorCode"] = errorCode
-    errorJson["errorMsg"] = msgs[1]%args
+    if args:
+        errorJson["errorMsg"] = msgs[1]%args
+    else:
+        errorJson["errorMsg"] = msgs[1]
     response = app.response_class(
         response=json.dumps(errorJson),
         status=int(msgs[0]),
