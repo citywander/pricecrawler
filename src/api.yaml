@@ -7,8 +7,6 @@ basePath: "/v2"
 tags:
 - name: "search"
   description: "Follow price by search"
-- name: "price"
-  description: "Product Price" 
 schemes:
 - "http"
 paths:
@@ -38,36 +36,6 @@ paths:
             items: 
               $ref: "#/definitions/search"
   /search/{searchId}:
-    put:
-      tags:
-      - "search"
-      summary: "Update an existing search"
-      description: ""
-      operationId: "updatePet"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "searchId"
-        in: "path"
-        description: "ID of search to return"
-        required: true
-        type: "integer"
-        format: "int64"      
-      - in: "body"
-        name: "body"
-        description: "search object that needs to be added to the store"
-        required: true
-        schema:
-          $ref: "#/definitions/addsearch"
-      responses:
-        200:
-          description: "Get search successfully"
-          schema:
-            type: object
-            items: 
-              $ref: "#/definitions/search"
     delete:
       tags:
       - "search"
@@ -89,7 +57,7 @@ paths:
         400:
           description: "Invalid ID supplied"
         404:
-          description: "Pet not found"
+          description: "Search not found"
         405:
           description: "Validation exception" 
     get:
@@ -116,13 +84,71 @@ paths:
             type: object
             items: 
               $ref: "#/definitions/search"
+  /search/{search_id}/price/{price_id}:
+    delete:
+      tags:
+      - "search"
+      summary: "Delete an existing p111rice"
+      description: ""
+      operationId: "deletePrice"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "price_id"
+        in: "path"
+        description: "ID of price to return"
+        required: true
+        type: "integer"
+        format: "int64"
+      - name: "search_id"
+        in: "path"
+        description: "ID of price to return"
+        required: true
+        type: "integer"
+        format: "int64"          
+      responses:
+        204:
+          description: "Delete successfully" 
+  /search/{search_id}/price:          
+    post:
+      tags:
+      - "search"
+      summary: "Add a price to the store"
+      description: ""
+      operationId: "addPrice"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "search_id"
+        in: "path"
+        description: "ID of price to return"
+        required: true
+        type: "integer"
+        format: "int64"      
+      - in: "body"
+        name: "body"
+        description: "price object that needs to be added to the store"
+        required: true
+        schema:
+          $ref: "#/definitions/addPrice"
+      responses:
+        200:
+          description: "Add price successfully"
+          schema:
+            type: object
+            items: 
+              $ref: "#/definitions/price"          
   /search?keywords=iphone,7:              
     get:
       tags:
       - "search"
       summary: "get an existing search"
       description: ""
-      operationId: "querySearcht"
+      operationId: "querySearch"
       consumes:
       - "application/json"
       produces:
@@ -140,57 +166,68 @@ paths:
           schema:
             type: array
             items: 
-              $ref: "#/definitions/search"               
-  /price:
-    post:
+              $ref: "#/definitions/search"
+  /search/product/{product_id}:
+    get:
       tags:
-      - "price"
-      summary: "Add a price to the store"
+      - "search"
+      summary: "get an existing search by product Id"
       description: ""
-      operationId: "addPrice"
+      operationId: "querySearchByProductId"
       consumes:
       - "application/json"
       produces:
       - "application/json"
       parameters:
-      - in: "body"
-        name: "body"
-        description: "price object that needs to be added to the store"
-        required: true
-        schema:
-          $ref: "#/definitions/price"
-      responses:
-        200:
-          description: "Add price successfully"
-          schema:
-            type: object
-            items: 
-              $ref: "#/definitions/price"
-  /price/{priceId}:
-    delete:
-      tags:
-      - "price"
-      summary: "Delete an existing p111rice"
-      description: ""
-      operationId: "deletePrice"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "priceId"
+      - name: "product_id"
         in: "path"
-        description: "ID of price to return"
+        description: "search to return"
         required: true
         type: "integer"
         format: "int64"      
       responses:
-        400:
-          description: "Invalid ID supplied"
-        404:
-          description: "price not found"
-        405:
-          description: "Validation exception" 
+        200:
+          description: "Query search successfully"
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/search"
+  /search/min:
+    get:
+      tags:
+      - "search"
+      summary: "get an existing search by product Id"
+      description: ""
+      operationId: "querySearchLtMin"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "Query search successfully"
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/search" 
+  /search/avg:
+    get:
+      tags:
+      - "search"
+      summary: "得到所有大于均价的现存的纬雅产品"
+      description: ""
+      operationId: "querySearchLtAvg"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "Query search successfully"
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/search"               
 definitions:
   search:
     type: "object"
@@ -215,10 +252,24 @@ definitions:
       description:
         type: "string"
         example: "iphone 7 plus 金色"
+      min:
+        type: "string"
+        example: "14.7"
+        description: "最小价格"
+      max:
+        type: "string"
+        example: "14.7"
+        description: "最大价格"
+      avg:
+        type: "string"
+        example: "14.7"
+        description: "平均价格"        
       prices:
         type: array
         items:
           $ref: "#/definitions/price"
+      refPrice:
+        $ref: "#/definitions/price"
       create_date:
         type: "string"
         description: "Create Datetime"
@@ -229,6 +280,7 @@ definitions:
     type: "object"
     required:
     - "keywords"
+    - "url"
     properties:
       keywords:
         type: "string"
@@ -242,6 +294,9 @@ definitions:
         type: "string"
         description: "Or words, if any word in contect, accept"
         example: "plus"
+      url:
+        type: "string"
+        example: "https://mstore.ppdai.com/product/1390"
       description:
         type: "string"
         example: "iphone 7 plus 金色"
@@ -282,3 +337,16 @@ definitions:
       update_date:
         type: "string"
         description: "Update Datetime"
+  addPrice:
+    type: "object"
+    required:
+    - "url"
+    properties:
+      url:
+        type: "string"
+        description: "拍拍或者京东的URL"
+        example: "https://mstore.ppdai.com/product/1"
+      seller:
+        type: "string"
+        description: "卖家"
+        example: "aaa"

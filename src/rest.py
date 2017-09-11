@@ -12,16 +12,16 @@ app.config['LANGUAGES']="zh-CN"
 
 
 add_search=("INSERT INTO search "
-              "(keywords, e_keywords, o_keywords, description, product_id, is_auto, create_date, update_date) "
-              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(product_id)s, %(is_auto)s, %(create_date)s, %(update_date)s)")
+              "(keywords, e_keywords, o_keywords, description, product_id, is_auto, international, create_date, update_date) "
+              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(product_id)s, %(is_auto)s, %(international)s, %(create_date)s, %(update_date)s)")
 
 update_search=("UPDATE search "
-              "set keywords=%(keywords)s, e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s,update_date=%(update_date)s "
+              "set keywords=%(keywords)s, e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s, international=%(international)s, update_date=%(update_date)s "
               "where id=%(id)s")
 
 add_price=("INSERT INTO price "
-            "(product_id, search_id, url, src, description, seller, create_date,update_date) "
-            "VALUES(%(product_id)s, %(search_id)s, %(url)s, %(src)s, %(description)s, %(seller)s, %(create_date)s, %(update_date)s)")
+            "(product_id, search_id, url, src, description, seller, is_input, create_date,update_date) "
+            "VALUES(%(product_id)s, %(search_id)s, %(url)s, %(src)s, %(description)s, %(seller)s, %(is_input)s, %(create_date)s, %(update_date)s)")
 
 update_price=("UPDATE price "
               "set url=%(url)s, seller=%(seller)s, update_date=%(update_date)s "
@@ -44,60 +44,154 @@ def deleteSearch(searchId):
     pass
     return ('', 204)
 
+
+
+@app.route('/search/avg', methods=['GET'])
+def querySearchAvg():
+    expand = request.args.get('expand')    
+    query='''
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input
+        from search s left join price p on s.id=p.search_id
+        where p.search_id in(
+        select search_id from price p where seller='%s' and price <= (select avg(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
+    '''
+    weiya=config.get("words", "weiya")
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        query = query%(weiya)
+        cursor.execute(query)
+        results = handleSearchResults(cursor)
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(list(results.values()))       
+
+@app.route('/search/min', methods=['GET'])
+def querySearchMin():
+    expand = request.args.get('expand')    
+    query='''
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input 
+        from search s left join price p on s.id=p.search_id
+        where p.search_id in(
+        select search_id from price p where seller='%s' and price <= (select min(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
+    '''
+    weiya=config.get("words", "weiya")
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        query = query%(weiya)
+        cursor.execute(query)
+        results = handleSearchResults(cursor)
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(list(results.values()))    
+
 @app.route('/search', methods=['GET'])
 def querySearch():
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto from search s left join price p on s.id=p.search_id"
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    hasWhere = False
     if not keywords is None:
         keywords = handleUserInput(keywords)
         likesQuery = list(map(likes, keywords.split(",")))
-        query = query  + " where " + " and ".join(likesQuery)
+        query = query  + "where " + " and ".join(likesQuery)
+        hasWhere = True
         pass
+    product_id = request.args.get("product_id")
+    if product_id:
+        if hasWhere:
+            query = query + " and s.product_id=" + str(product_id)
+        else:
+            query = query + " where s.product_id=" + str(product_id)  
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        results = {}
-        for (sid, keywords, e_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto) in cursor:
-            if sid not in results:
-                prices = []
-                results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
-            else:
-                prices = results[sid]["prices"]
-            if pid != None:
-                prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
+        results = handleSearchResults(cursor)
     finally:
         cursor.close()
         conn.close()
     return jsonify(list(results.values()))
 
-
-@app.route('/search/<path:searchId>', methods=['GET'])
-def querySearchById(searchId):
-    logger.info("Get Search by id " + str(searchId))
+@app.route('/search/product/<path:product_id>', methods=['GET'])
+def querySearchByProductId(product_id):
+    logger.info("Get Search")
     keywords = request.args.get('keywords')
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    likes = lambda key : " keywords like '%" + key +"%'" 
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    if product_id:
+        query = query + " where s.product_id=" + str(product_id)  
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        results = {}
-        prices = []
-        empty = True
-        for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto) in cursor:
-            empty = False
-            results = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords": o_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
-            if pid != None:
-                prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate})
-        if empty:
-            return responseError("E0001", (searchId,))
+        results = handleSearchResults(cursor)
+        if len(results) == 0:
+            return responseError("E0003")
     finally:
         cursor.close()
         conn.close()
-    return jsonify(results)
-    
+    return jsonify(list(results.values())[0])    
+
+@app.route('/search/<path:searchId>', methods=['GET'])
+def querySearchById(searchId):
+    logger.info("Get Search by id " + str(searchId))
+    weiya=config.get("words", "weiya")
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = handleSearchResults(cursor)
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(results[int(searchId)])
+
+
+def handleSearchResults(cursor):
+    results = {}
+    weiya=config.get("words", "weiya")
+    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto, is_input) in cursor:
+        if sid not in results:
+            prices = []
+            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
+        else:
+            prices = results[sid]["prices"]
+        if pid == None:
+            continue
+        if weiya == seller:
+            refPrice={"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate}
+            results[sid]["refPrice"]=refPrice
+        else:           
+            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate, "is_input":is_input})
+    for value in results.values():
+        min = value["refPrice"]["price"]
+        max = value["refPrice"]["price"]
+        avg = 0
+        total= value["refPrice"]["price"]
+        count = 1
+        for oneprice in value["prices"]:
+            price = oneprice["price"]
+            if price == None:
+                continue
+            if min > price:
+                min = price
+            if max < price:
+                max = price
+            total = total + price
+            count = count + 1
+        value["min"] = min
+        value["max"] = max
+        if count == 0:
+            value["avg"] = 0
+        else:
+            value["avg"] = total/count   
+    return results 
 
 @app.route('/search', methods=['POST'])
 def addSearch():
@@ -133,7 +227,12 @@ def addSearch():
     search["keywords"] = handleUserInput(search["keywords"])
     huiyaDescription=docs[product_id]["name"]
     if not matchKeywords(huiyaDescription, search["keywords"], e_keywords, o_keywords):
-        return responseError("E0005", (search["keywords"],)) 
+        return responseError("E0005", (search["keywords"],))
+    
+    international = 1
+    if "international" in search and search["international"] == 0:
+        international = 0
+        
     data_search = {
         "product_id":product_id,
         'keywords': search["keywords"],
@@ -141,6 +240,7 @@ def addSearch():
         'o_keywords': o_keywords,
         'description': description,
         'is_auto': is_auto,
+        'international': international,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
     }
@@ -156,7 +256,7 @@ def addSearch():
             data_search["id"] = searchId
             cursor.execute(update_search, data_search)
         conn.commit()
-        scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId)
+        scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId, international)
         return querySearchById(searchId)
     except Exception as e:
         logger.error(str(e))
@@ -196,19 +296,14 @@ def newPp(product_id):
     insertOrUpdateDB(skuProd)
     return True    
 
-@app.route('/price', methods=['POST'])
-def addPrice():
+@app.route('/search/<path:search_id>/price', methods=['POST'])
+def addPrice(search_id):
     price = request.json
-    if "search_id" not in price:
-        return responseError("E0002", ("search_id",))
-    search_id=price["search_id"]
     if "url" not in price:
         return responseError("E0002", ("url",))
     search = getSearchById(search_id)   
     if search == None:
         return responseError("E0001", (search_id,))
-    if search["is_auto"] == 1:
-        return responseError("E0005", "This search is handled by system" ,  404)
     src = "pp"
     url = price["url"]
     seller=None
@@ -232,6 +327,7 @@ def addPrice():
         "url": url,
         "seller" : seller,
         "description" : description,
+        "is_input" : 1,
         "src":src,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()        
@@ -242,13 +338,12 @@ def addPrice():
         priceId = getPriceByProduct(cursor, product_id, search_id)
         if priceId == -1:
             cursor.execute(add_price, price_data)
+            priceId = cursor.lastrowid
         else:
             price_data["id"] = priceId
             cursor.execute(update_price, price_data)
         conn.commit()
-        priceId = cursor.lastrowid
-        price_data["id"] = priceId
-        return jsonify(price_data)        
+        return querySearchById(search_id)
     except Exception as e:
         logger.error(str(e))
         return responseError("G0001", (), str(e)) 
@@ -266,9 +361,9 @@ def getPriceByProduct(cursor, product_id, search_id):
     return -1
 
 
-@app.route('/price/<path:priceId>', methods=['DELETE'])
-def deletePriceById(priceId):
-    query=("Delete from price where id=" + priceId)
+@app.route('/search/<path:search_id>/price/<path:price_id>', methods=['DELETE'])
+def deletePriceById(search_id, price_id):
+    query=("Delete from price where id=" + price_id)
     try:
         conn = connectToDb()
         cursor = conn.cursor()

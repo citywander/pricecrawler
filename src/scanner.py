@@ -281,10 +281,9 @@ def jdProductsByUrl(search_id, product_id, url):
         conn.close()
     pass            
        
-def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds):
+def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international):
     jdself = config.get("server", "jd.only.self")
     jdtwo = config.get("server", "jd.two")
-    jdInter = config.get("server", "jd.international")
     twoword=config.get("words", "two")
  
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
@@ -310,7 +309,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         if jdtwo.lower() == "false" and twoword in ware["wname"]:
             continue        
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
-        if jdInter.lower() == "false" and ware["international"]:
+        if international==0 and ware["international"]:
             continue
         if float(huiyaPrice)/float( ware["jdPrice"]) > beyondPrice:
             continue
@@ -400,7 +399,7 @@ def deletePriceBySearchId(searchId):
     pass
     
 
-def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId):
+def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, international):
     if e_keywords == None:
         e_keywords = ""
     if o_keywords == None:
@@ -421,7 +420,6 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId):
         nlikesQuery = list(map(olikes, o_keywords.split(",")))
         sql = sql + " and " +"(" +" or ".join(nlikesQuery) +")" 
     try:
-        print(sql)
         conn = connectToDb()
         cursor = conn.cursor()
         productIds = getProductIdsFromPrice(cursor, searchId)
@@ -449,7 +447,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId):
             else:    
                 cursor.execute(add_price, data_price)        
         conn.commit()
-        jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds)
+        jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international)
         deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()
@@ -462,7 +460,7 @@ def deletePrices(searchId, productIds):
         conn = connectToDb()
         cursor = conn.cursor()
         for productId in productIds:
-            query=("Delete from price where search_id=" + str(searchId) + " and product_id=" + str(productId))
+            query=("Delete from price where search_id=" + str(searchId) + " and product_id=" + str(productId) + " and is_input=0")
             cursor.execute(query)
         conn.commit()  
     finally:
@@ -484,25 +482,25 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 
 def scanAllPrice():
     logger.info("Start scan price")
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto, p.url, s.product_id from price p left join pp "
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto, p.url, s.product_id, s.international from price p left join pp "
             "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
     cursor.execute(sql)
     searchs={}
-    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, url, sproduct_id) in cursor:
+    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, url, sproduct_id, international) in cursor:
         if src == 'pp':
             fetchPriceByAttributes(priceId, productId, skuIds.split(","))
         else:
             if e_keywords == None:
                 e_keywords = ""
             searchs[searchId] = {"keywords":keywords,"e_keywords":e_keywords,"o_keywords":o_keywords,
-                                 "product_id": productId, "is_auto":is_auto, "search_id":searchId,"url":url, "sproduct_id":sproduct_id}
+                                 "product_id": productId, "is_auto":is_auto, "search_id":searchId,"url":url, "sproduct_id":sproduct_id, "international":international}
     inProductIds=[]
     for (searchId, search) in searchs.items():
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:            
-            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds)
+            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"])
         else:
             jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
