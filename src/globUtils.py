@@ -28,7 +28,7 @@ def connectToDb():
             pwd=config.get("db","pwd")
             return MySQLdb.connect(host=host, port=port, user=user, passwd=pwd, db="prodprice", charset='utf8')
         except Exception as e:
-            logger.error(e)
+            logger.exception(str(e))
             time.sleep(2)
 
 

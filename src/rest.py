@@ -48,18 +48,22 @@ def deleteSearch(searchId):
 
 @app.route('/search/avg', methods=['GET'])
 def querySearchAvg():
-    expand = request.args.get('expand')    
+    expand = request.args.get('expand')
+    expand = request.args.get('expand')
+    isExpand = False
+    if expand != None and expand.strip().lower() == "true":
+        isExpand = True    
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
-        where p.search_id in(
-        select search_id from price p where seller='%s' and price <= (select avg(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
+        where p.product_id in(
+        select product_id from price p where seller='%s' and price <= (select avg(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999 and seller!='%s'))    
     '''
     weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya)
+        query = query%(weiya, weiya)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
@@ -69,18 +73,21 @@ def querySearchAvg():
 
 @app.route('/search/min', methods=['GET'])
 def querySearchMin():
-    expand = request.args.get('expand')    
+    expand = request.args.get('expand')
+    isExpand = False
+    if expand != None and expand.strip().lower() == "true":
+        isExpand = True
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input 
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
-        where p.search_id in(
-        select search_id from price p where seller='%s' and price <= (select min(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
+        where p.product_id in(
+        select product_id from price p where seller='%s' and price <= (select min(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999 and seller!='%s'))    
     '''
     weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya)
+        query = query%(weiya, weiya)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
@@ -92,8 +99,9 @@ def querySearchMin():
 def querySearch():
     logger.info("Get Search")
     keywords = request.args.get('keywords')
-    likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    likes = lambda key : " keywords like '%" + key +"%'"
+    weiya=config.get("words", "weiya")
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id and p.seller='" +weiya + "'"
     hasWhere = False
     if not keywords is None:
         keywords = handleUserInput(keywords)
@@ -116,14 +124,14 @@ def querySearchByProductId(product_id):
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price  from search s left join price p on s.id=p.search_id "
     if product_id:
         query = query + " where s.product_id=" + str(product_id)  
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        results = handleSearchResults(cursor)
+        results = handleSearchResults(cursor, expand=True)
         if len(results) == 0:
             return responseError("E0003",(product_id, ))
     finally:
@@ -135,56 +143,38 @@ def querySearchByProductId(product_id):
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
     weiya=config.get("words", "weiya")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        results = handleSearchResults(cursor)
+        results = handleSearchResults(cursor, expand=True)
     finally:
         cursor.close()
         conn.close()
     return jsonify(results[int(searchId)])
 
 
-def handleSearchResults(cursor):
+def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, product_id, updateDate, is_auto, is_input) in cursor:
+    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price) in cursor:
         if sid not in results:
             prices = []
-            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
+            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price}
         else:
             prices = results[sid]["prices"]
         if pid == None:
             continue
         if weiya == seller:
             refPrice={"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate}
-            results[sid]["refPrice"]=refPrice
+            results[sid]["target"]=refPrice
         else:           
             prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate, "is_input":is_input})
+    
     for value in results.values():
-        min = value["refPrice"]["price"]
-        max = value["refPrice"]["price"]
-        avg = 0
-        total= value["refPrice"]["price"]
-        count = 1
-        for oneprice in value["prices"]:
-            price = oneprice["price"]
-            if price == None:
-                continue
-            if min > price:
-                min = price
-            if max < price:
-                max = price
-            total = total + price
-            count = count + 1
-        value["min"] = min
-        value["max"] = max
-        if count == 0:
-            value["avg"] = 0
-        else:
-            value["avg"] = int(total/count)   
+        if not expand:
+            del value["prices"]
     return results 
 
 @app.route('/search', methods=['POST'])

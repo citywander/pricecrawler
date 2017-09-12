@@ -265,9 +265,10 @@ definitions:
         description: "平均价格"        
       prices:
         type: array
+        description: "所有友商的价格列表"
         items:
           $ref: "#/definitions/price"
-      refPrice:
+      target:
         $ref: "#/definitions/price"
       create_date:
         type: "string"

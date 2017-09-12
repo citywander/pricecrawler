@@ -448,10 +448,27 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
                 cursor.execute(add_price, data_price)        
         conn.commit()
         jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international)
+        updateMaxMinAvg()
         deletePrices(searchId, set(productIds) - set(inProductIds))
     finally:
         cursor.close()
         conn.close()
+        
+def updateMaxMinAvg():
+    update1="update search s set min_price=(select min(price) price from price p where s.id=p.search_id group by search_id)"
+    update2="update search s set max_price=(select max(price) price from price p where s.id=p.search_id group by search_id)"
+    update3="update search s set avg_price=(select avg(price) price from price p where s.id=p.search_id group by search_id)"
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(update1)
+        cursor.execute(update2)
+        cursor.execute(update3)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    pass
 
 
 def deletePrices(searchId, productIds):
@@ -504,6 +521,7 @@ def scanAllPrice():
         else:
             jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
+        updateMaxMinAvg()
     pass
     logger.info("End scan price")
 
