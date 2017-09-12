@@ -14,8 +14,8 @@ paths:
     post:
       tags:
       - "search"
-      summary: "Add a search to the store"
-      description: ""
+      summary: "新增一个search(查找)"
+      description: "search与纬雅的一个产品关联，它将跟踪友商的同产品价格"
       operationId: "addSearch"
       consumes:
       - "application/json"
@@ -24,23 +24,47 @@ paths:
       parameters:
       - in: "body"
         name: "body"
-        description: "search object that needs to be added to the store"
+        description: "创建search所需要的信息"
         required: true
         schema:
           $ref: "#/definitions/addsearch"
       responses:
         200:
-          description: "Add search successfully"
+          description: "创建search成功，返回所有符合条件的友商"
           schema:
             type: object
             items: 
               $ref: "#/definitions/search"
+    get:
+      tags:
+      - "search"
+      summary: "查找产品列表"
+      description: "通过用户输入的keywords，查找出所有的产品列表"
+      operationId: "querySearch"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "keywords"
+        in: "query"
+        description: "用与查找的关键字，各关键字之前,分隔"
+        required: true
+        type: "integer"
+        format: "int64"      
+      responses:
+        200:
+          description: "正确执行"
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/search"              
   /search/{searchId}:
     delete:
       tags:
       - "search"
-      summary: "Delete an existing search"
-      description: ""
+      summary: "删除一个search"
+      description: "通过id删除一个search"
       operationId: "deleteSearch"
       consumes:
       - "application/json"
@@ -49,7 +73,7 @@ paths:
       parameters:
       - name: "searchId"
         in: "path"
-        description: "ID of search to return"
+        description: "search ID"
         required: true
         type: "integer"
         format: "int64"      
@@ -63,8 +87,8 @@ paths:
     get:
       tags:
       - "search"
-      summary: "get an existing search"
-      description: ""
+      summary: "得到search"
+      description: "通过search id得到search"
       operationId: "getSearcht"
       consumes:
       - "application/json"
@@ -88,8 +112,8 @@ paths:
     delete:
       tags:
       - "search"
-      summary: "Delete an existing p111rice"
-      description: ""
+      summary: "删除一个price"
+      description: "删除一个针对友商的price跟踪"
       operationId: "deletePrice"
       consumes:
       - "application/json"
@@ -98,25 +122,25 @@ paths:
       parameters:
       - name: "price_id"
         in: "path"
-        description: "ID of price to return"
+        description: "price ID"
         required: true
         type: "integer"
         format: "int64"
       - name: "search_id"
         in: "path"
-        description: "ID of price to return"
+        description: "这个price所在的search"
         required: true
         type: "integer"
         format: "int64"          
       responses:
         204:
-          description: "Delete successfully" 
+          description: "删除成功" 
   /search/{search_id}/price:          
     post:
       tags:
       - "search"
-      summary: "Add a price to the store"
-      description: ""
+      summary: "新增价格follow"
+      description: "新增一个对友商的价格跟踪"
       operationId: "addPrice"
       consumes:
       - "application/json"
@@ -125,54 +149,29 @@ paths:
       parameters:
       - name: "search_id"
         in: "path"
-        description: "ID of price to return"
+        description: "search id,这个price将加在这个search下面"
         required: true
         type: "integer"
         format: "int64"      
       - in: "body"
         name: "body"
-        description: "price object that needs to be added to the store"
+        description: "加入这个price所需要的信息"
         required: true
         schema:
           $ref: "#/definitions/addPrice"
       responses:
         200:
-          description: "Add price successfully"
+          description: "新增成功"
           schema:
             type: object
             items: 
               $ref: "#/definitions/price"          
-  /search?keywords=iphone,7:              
-    get:
-      tags:
-      - "search"
-      summary: "get an existing search"
-      description: ""
-      operationId: "querySearch"
-      consumes:
-      - "application/json"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "keywords"
-        in: "query"
-        description: "search to return"
-        required: true
-        type: "integer"
-        format: "int64"      
-      responses:
-        200:
-          description: "Query search successfully"
-          schema:
-            type: array
-            items: 
-              $ref: "#/definitions/search"
   /search/product/{product_id}:
     get:
       tags:
       - "search"
-      summary: "get an existing search by product Id"
-      description: ""
+      summary: "通过product id返回search"
+      description: "通过product id返回search, product id 为https://mstore.ppdai.com/product/1371后面的1371和https://item.m.jd.com/product/2728763.html的2728763"
       operationId: "querySearchByProductId"
       consumes:
       - "application/json"
@@ -187,7 +186,7 @@ paths:
         format: "int64"      
       responses:
         200:
-          description: "Query search successfully"
+          description: "返回search"
           schema:
             type: array
             items: 
@@ -196,8 +195,8 @@ paths:
     get:
       tags:
       - "search"
-      summary: "get an existing search by product Id"
-      description: ""
+      summary: "返回纬雅的价格最小的所有产品"
+      description: "返回纬雅的价格最小的所有产品"
       operationId: "querySearchLtMin"
       consumes:
       - "application/json"
@@ -214,8 +213,8 @@ paths:
     get:
       tags:
       - "search"
-      summary: "得到所有大于均价的现存的纬雅产品"
-      description: ""
+      summary: "返回纬雅的价格小于均价的所有产品"
+      description: "返回纬雅的价格小于均价的所有产品"
       operationId: "querySearchLtAvg"
       consumes:
       - "application/json"
@@ -236,7 +235,7 @@ definitions:
     properties:
       id:
         type: "integer"
-        description: "Search ID, if create, please ignore"
+        description: "Search ID, if create"
       keywords:
         type: "string"
         description: "And words, if all words in content, accept"
@@ -349,4 +348,4 @@ definitions:
       seller:
         type: "string"
         description: "卖家"
-        example: "aaa"
+        example: "飞牛网"

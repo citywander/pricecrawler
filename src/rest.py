@@ -50,7 +50,7 @@ def deleteSearch(searchId):
 def querySearchAvg():
     expand = request.args.get('expand')    
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input
         from search s left join price p on s.id=p.search_id
         where p.search_id in(
         select search_id from price p where seller='%s' and price <= (select avg(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
@@ -71,7 +71,7 @@ def querySearchAvg():
 def querySearchMin():
     expand = request.args.get('expand')    
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input 
+        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input 
         from search s left join price p on s.id=p.search_id
         where p.search_id in(
         select search_id from price p where seller='%s' and price <= (select min(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999))    
@@ -93,7 +93,7 @@ def querySearch():
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
     hasWhere = False
     if not keywords is None:
         keywords = handleUserInput(keywords)
@@ -101,12 +101,6 @@ def querySearch():
         query = query  + "where " + " and ".join(likesQuery)
         hasWhere = True
         pass
-    product_id = request.args.get("product_id")
-    if product_id:
-        if hasWhere:
-            query = query + " and s.product_id=" + str(product_id)
-        else:
-            query = query + " where s.product_id=" + str(product_id)  
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -122,7 +116,7 @@ def querySearchByProductId(product_id):
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id "
     if product_id:
         query = query + " where s.product_id=" + str(product_id)  
     try:
@@ -131,7 +125,7 @@ def querySearchByProductId(product_id):
         cursor.execute(query)
         results = handleSearchResults(cursor)
         if len(results) == 0:
-            return responseError("E0003")
+            return responseError("E0003",(product_id, ))
     finally:
         cursor.close()
         conn.close()
@@ -141,7 +135,7 @@ def querySearchByProductId(product_id):
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
     weiya=config.get("words", "weiya")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -156,7 +150,7 @@ def querySearchById(searchId):
 def handleSearchResults(cursor):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, updateDate, is_auto, is_input) in cursor:
+    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, product_id, updateDate, is_auto, is_input) in cursor:
         if sid not in results:
             prices = []
             results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto}
@@ -165,10 +159,10 @@ def handleSearchResults(cursor):
         if pid == None:
             continue
         if weiya == seller:
-            refPrice={"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate}
+            refPrice={"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate}
             results[sid]["refPrice"]=refPrice
         else:           
-            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "updateDate" : updateDate, "is_input":is_input})
+            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate, "is_input":is_input})
     for value in results.values():
         min = value["refPrice"]["price"]
         max = value["refPrice"]["price"]
@@ -190,7 +184,7 @@ def handleSearchResults(cursor):
         if count == 0:
             value["avg"] = 0
         else:
-            value["avg"] = total/count   
+            value["avg"] = int(total/count)   
     return results 
 
 @app.route('/search', methods=['POST'])
@@ -210,7 +204,7 @@ def addSearch():
             url = "/product/" + product_id       
         
     if not newPp(product_id):
-        return responseError("E0003")
+        return responseError("E0003",(product_id,))
     description = None
     if "description" in search:
         description = search["description"]

@@ -185,7 +185,7 @@ def getReponseFromPp(url, payload, dead=True):
             setProxy(request)
             response = urllib.request.urlopen(request, timeout=10)
             responseContent = response.read()
-            return json.loads(responseContent) 
+            return json.loads(responseContent.decode('utf-8')) 
         except Exception as e:
             logger.error(str(e) + "--" + url)
             time.sleep(2)
