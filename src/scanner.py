@@ -315,7 +315,6 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
             continue
         if ware["international"]:
             itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
-        print(itemUrl)
         description = ware["wname"]
         if not matchKeywords(str(ware.values()).lower(), keywords, e_keywords, o_keywords):
             continue
