@@ -389,7 +389,7 @@ def getSearchByProductId(product_id):
 
 @app.route('/api', methods=['GET'])
 def api():
-    with open("api.yaml", 'r') as stream:
+    with open("api.yaml", 'r', encoding="UTF-8") as stream:
         try:
             return jsonify(yaml.load(stream))
         except yaml.YAMLError as exc:
