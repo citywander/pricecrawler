@@ -4,7 +4,6 @@ import re
 import copy
 import time
 import urllib.parse
-import email.utils as eut
 import threading
 import datetime
 import sys
