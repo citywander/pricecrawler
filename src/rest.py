@@ -46,16 +46,11 @@ def deleteSearch(searchId):
 
 @app.route('/search/avg', methods=['GET'])
 def querySearchAvg():
-    expand = request.args.get('expand')
-    expand = request.args.get('expand')
-    isExpand = False
-    if expand != None and expand.strip().lower() == "true":
-        isExpand = True    
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
         where p.product_id in(
-        select product_id from price pp where seller='%s' and price > (select avg_price from search ps where ps.id=pp.search_id))    
+        select product_id from price pp where seller='%s' and saleState=1 and price > (select avg_price from search ps where ps.id=pp.search_id))    
     '''
     weiya=config.get("words", "weiya")
     try:
@@ -71,15 +66,11 @@ def querySearchAvg():
 
 @app.route('/search/min', methods=['GET'])
 def querySearchMin():
-    expand = request.args.get('expand')
-    isExpand = False
-    if expand != None and expand.strip().lower() == "true":
-        isExpand = True
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
         where p.product_id in(
-        select product_id from price pp where seller='%s' and price > (select min_price from search ps where ps.id=pp.search_id))    
+        select product_id from price pp where seller='%s' and saleState=1 and price >= (select min_price from search ps where ps.id=pp.search_id))    
     '''
     weiya=config.get("words", "weiya")
     try:
@@ -99,13 +90,11 @@ def querySearch():
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'"
     weiya=config.get("words", "weiya")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id and p.seller='" +weiya + "'"
-    hasWhere = False
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id and p.seller='" +weiya + "'"
     if not keywords is None:
         keywords = handleUserInput(keywords)
         likesQuery = list(map(likes, keywords.split(",")))
         query = query  + "where " + " and ".join(likesQuery)
-        hasWhere = True
         pass
     try:
         conn = connectToDb()
@@ -120,9 +109,7 @@ def querySearch():
 @app.route('/search/product/<path:product_id>', methods=['GET'])
 def querySearchByProductId(product_id):
     logger.info("Get Search")
-    keywords = request.args.get('keywords')
-    likes = lambda key : " keywords like '%" + key +"%'" 
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price  from search s left join price p on s.id=p.search_id "
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price  from search s left join price p on s.id=p.search_id "
     if product_id:
         query = query + " where s.product_id=" + str(product_id)  
     try:
@@ -140,8 +127,7 @@ def querySearchByProductId(product_id):
 @app.route('/search/<path:searchId>', methods=['GET'])
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
-    weiya=config.get("words", "weiya")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -156,19 +142,19 @@ def querySearchById(searchId):
 def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords,o_keywords, desc, pid, pdesc, price, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price) in cursor:
+    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price) in cursor:
         if sid not in results:
             prices = []
-            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price}
+            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count}
         else:
             prices = results[sid]["prices"]
         if pid == None:
             continue
         if weiya == seller:
-            refPrice={"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate}
+            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate}
             results[sid]["target"]=refPrice
         else:           
-            prices.append({"id":pid, "description":pdesc, "price" : price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate, "is_input":is_input})
+            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate, "is_input":is_input})
     
     for value in results.values():
         if not expand:

@@ -4,6 +4,7 @@ import logging
 import datetime
 import time
 import re
+import traceback
 from threading import Timer, Lock
 
 config=configparser.RawConfigParser()
@@ -38,6 +39,7 @@ def retry(func, *args, **kwargs):
             func(*args, **kwargs)
             break
         except Exception as e:
+            traceback.print_exc()
             time.sleep(5)
             logger.error(e)
     pass

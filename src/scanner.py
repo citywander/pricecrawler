@@ -16,20 +16,20 @@ docs = {}
 beyondPrice = float(2.5)
 
 add_pp = ("INSERT INTO pp "
-              "(product_id, name, skuNames, skuIds, linkUrl, price, monthPayments, months,seller,create_date, update_date) "
-              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(skuIds)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(create_date)s, %(update_date)s)")
+              "(product_id, name, skuNames, skuIds, linkUrl, price, monthPayments, months,seller,saleState,create_date, update_date) "
+              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(skuIds)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(saleState)s, %(create_date)s, %(update_date)s)")
 
 update_pp = ("UPDATE pp "
-             "SET price=%(price)s, monthPayments= %(monthPayments)s, skuNames=%(skuNames)s, skuIds=%(skuIds)s, update_date=%(update_date)s "
+             "SET price=%(price)s,saleState=%(saleState)s, monthPayments= %(monthPayments)s, skuNames=%(skuNames)s, skuIds=%(skuIds)s, update_date=%(update_date)s "
              "WHERE id=%(id)s"
              )
 
 add_price=("INSERT INTO price "
-              "(search_id, product_id, description, src, price, seller, url, create_date, update_date)"
-              "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s,  %(seller)s, %(url)s, %(create_date)s, %(update_date)s)")
+              "(search_id, product_id, description, src, price, seller, url, saleState,create_date, update_date)"
+              "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s, %(seller)s, %(url)s, %(saleState)s, %(create_date)s, %(update_date)s)")
 
 update_price=("UPDATE price "
-              "set price=%(price)s, update_date=%(update_date)s "
+              "set price=%(price)s, update_date=%(update_date)s,saleState=%(saleState)s "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
 def refresProductCache():
@@ -56,12 +56,12 @@ def searchPpProduct(refresh=False):
     onlyFirst = True
     curDocs=set()
     while True:
-        payload ={"pageIndex":pageIndex, "pageSize":pageSize,"name":""}
+        payload ={"pageIndex":pageIndex, "pageSize":pageSize}
         proContent = getReponseFromPp(url, payload)
         totalPage = proContent["responseContent"]["totalPage"]
         prodList = proContent["responseContent"]["product004List"]
         if onlyFirst:
-            logger.info("Find " + str(proContent["responseContent"]["totalCount"]) + " products from pp" )
+            logger.info("Find " + str(proContent["responseContent"]["totalCount"]) + " products from pp, totalPage:" +  str(totalPage))
             onlyFirst = False
         
         for prod in prodList:
@@ -150,15 +150,13 @@ def ppProdSku(prodId, prod, curDocs):
             skuIds.append(str(attributeValueId))
             prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
         sku = getSku(attributeIds, prodId)
-        #no sold
-        if sku["saleState"] == 2:
-            continue
         skuProd = {"name":prodName, "linkUrl": "/product/" + str(sku["id"]), "price":sku["price"], 
                        "monthPayments": str(sku["monthPayments"]), 
                        "months":str(sku["months"]),
                        "skuNames" :",".join(skuNames),
                        "skuIds" :",".join(skuIds),
-                       "seller": prod["seller"]}
+                       "seller": prod["seller"],
+                       "saleState": sku["saleState"]}
         product_id = skuProd["linkUrl"][9:]
         curDocs.add(product_id)
         insertOrUpdateDB(skuProd)
@@ -194,7 +192,7 @@ def getReponseFromPp(url, payload, dead=True):
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
             expireDatetime = datetime.datetime.strptime("17 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
-                print("Expire time is 17 Sep 2017 10:00:00 GMT, Application Exit")
+                print("Expire time is 19 Sep 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)
             return json.loads(responseContent.decode('utf-8')) 
         except Exception as e:
@@ -215,6 +213,7 @@ def insertOrUpdateDB(doc):
                     'skuNames': doc["skuNames"],
                     'skuIds': doc["skuIds"],
                     'price': doc["price"],
+                    "saleState": doc["saleState"],
                     'monthPayments': doc["monthPayments"],
                     'months': doc["months"],
                     'update_date': getFormatDate(),
@@ -230,6 +229,7 @@ def insertOrUpdateDB(doc):
                     'skuIds': doc["skuIds"],
                     'linkUrl': doc["linkUrl"],                    
                     'price': doc["price"],
+                    'saleState': doc["saleState"],
                     'monthPayments': doc["monthPayments"],
                     'months': doc["months"],
                     'seller': doc["seller"],
@@ -293,6 +293,9 @@ def jdProductsByUrl(search_id, product_id, url):
     pass            
        
 def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international):
+    if str(product_id) not in docs:
+        logger.error("This product id-" + str(product_id) + " can't be found")
+        return
     jdself = config.get("server", "jd.only.self")
     jdtwo = config.get("server", "jd.two")
     twoword=config.get("words", "two")
@@ -322,7 +325,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
         if international==0 and ware["international"]:
             continue
-        if float(huiyaPrice)/float( ware["jdPrice"]) > beyondPrice:
+        if float(huiyaPrice)/float(ware["jdPrice"]) > beyondPrice:
             continue
         if ware["international"]:
             itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
@@ -339,6 +342,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
             'price': ware["jdPrice"],
             'description': description,
             'seller': "jd",
+            'saleState': 1,
             'src': "jd",
             'url': itemUrl,
             "create_date": getFormatDate(),
@@ -414,7 +418,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
         e_keywords = ""
     if o_keywords == None:
         o_keywords = ""        
-    query = ("SELECT name, product_id, seller, linkUrl,price FROM pp where product_id=" + product_id + " or  ")
+    query = ("SELECT name, product_id, seller, linkUrl,price,saleState FROM pp where product_id=" + product_id + " or  ")
     likes = lambda key : " name like '%" + key +"%'" 
     nlikes = lambda key : " name not like '%" + key +"%'"
     olikes = lambda key : " name like '%" + key +"%'"
@@ -435,7 +439,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
         productIds = getProductIdsFromPrice(cursor, searchId)
         cursor.execute(sql)
         huiyaPrice=docs[product_id]["price"]
-        for (name, productId, seller,linkeUrl, price) in cursor:
+        for (name, productId, seller,linkeUrl, price, saleState) in cursor:
             if float(huiyaPrice)/float(price) > beyondPrice:
                 continue
             if seller==config.get("words", "weiya") and str(productId) != product_id:
@@ -445,6 +449,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
                 'product_id': productId,
                 'price': price,
                 'seller': seller,
+                'saleState':saleState,
                 'description': name,
                 'src': "pp",
                 'url': "https://mstore.ppdai.com" + linkeUrl,
@@ -458,22 +463,27 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
                 cursor.execute(add_price, data_price)        
         conn.commit()
         jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international)
-        updateMaxMinAvg()
         deletePrices(searchId, set(productIds) - set(inProductIds))
+        updateMaxMinAvg()
     finally:
         cursor.close()
         conn.close()
         
 def updateMaxMinAvg():
-    update1="update search s set min_price=(select min(price) price from price p where s.id=p.search_id group by search_id)"
-    update2="update search s set max_price=(select max(price) price from price p where s.id=p.search_id group by search_id)"
-    update3="update search s set avg_price=(select avg(price) price from price p where s.id=p.search_id group by search_id)"
+    update1="update search s set min_price=(select min(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
+    update2="update search s set max_price=(select max(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
+    update3="update search s set avg_price=(select avg(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
+    update4="update price p , (select price, search_id from price pp where pp.seller='%s') t set p.gap_price=p.price - t.price where p.search_id=t.search_id"
+    update5="update search s set count=(select count(*) from price p where p.search_id=s.id and seller!='%s' and saleState=1 )"
+    weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(update1)
         cursor.execute(update2)
         cursor.execute(update3)
+        cursor.execute(update4%(weiya,))
+        cursor.execute(update5%(weiya,))
         conn.commit()
     finally:
         cursor.close()
@@ -517,30 +527,29 @@ def scanAllPrice():
     searchs={}
     for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, url, sproduct_id, international) in cursor:
         if src == 'pp':
-            fetchPriceByAttributes(priceId, productId, skuIds.split(","))
+            if skuIds != None:
+                fetchPriceByAttributes(priceId, productId, skuIds.split(","))
         else:
             if e_keywords == None:
                 e_keywords = ""
             searchs[searchId] = {"keywords":keywords,"e_keywords":e_keywords,"o_keywords":o_keywords,
                                  "product_id": productId, "is_auto":is_auto, "search_id":searchId,"url":url, "sproduct_id":sproduct_id, "international":international}
-    inProductIds=[]
     for (searchId, search) in searchs.items():
+        inProductIds=[]
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:            
             jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"])
         else:
             jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
-        updateMaxMinAvg()
     pass
+    updateMaxMinAvg()
     logger.info("End scan price")
 
 def fetchPriceByAttributes(priceId, productId, attributeIds):
     sku = getSku(attributeIds, productId)
-    hasSold = True
-    if sku["saleState"] == 2:
-        hasSold = False
     skuProd = {"price":sku["price"],
+               "saleState":sku["saleState"],
                "monthPayments": str(sku["monthPayments"]),
                "months": str(sku["months"]),
                "product_id": productId,
@@ -548,21 +557,16 @@ def fetchPriceByAttributes(priceId, productId, attributeIds):
                "id": priceId}
     
     updatePriceSql = ("update price " 
-                      "set price = %(price)s, update_date=%(update_date)s "
+                      "set price=%(price)s, saleState=%(saleState)s,update_date=%(update_date)s "
                       "where id=%(id)s")
     updatePpSql = ("update pp "
-                   "set price = %(price)s, monthPayments=%(monthPayments)s,months=%(months)s, update_date=%(update_date)s "
+                   "set price = %(price)s, saleState=%(saleState)s, monthPayments=%(monthPayments)s,months=%(months)s, update_date=%(update_date)s "
                    "where product_id=%(product_id)s")
-    deletePriceSql = ("delete price where id=" + str(priceId))
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        if hasSold:
-            cursor.execute(updatePriceSql, skuProd)
-            cursor.execute(updatePpSql, skuProd)
-        else:
-            logger.info("This product-%(product_id)s and this price-%(id)s will be deleted"%skuProd)
-            cursor.execute(deletePriceSql)
+        cursor.execute(updatePriceSql, skuProd)
+        cursor.execute(updatePpSql, skuProd)
         conn.commit()
     finally:
         cursor.close()
