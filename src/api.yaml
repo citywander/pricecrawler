@@ -195,8 +195,8 @@ paths:
     get:
       tags:
       - "search"
-      summary: "返回纬雅的价格最小的所有产品"
-      description: "返回纬雅的价格最小的所有产品"
+      summary: "返回纬雅的价格大于最小价格的商品列表"
+      description: "返回纬雅的价格大于最小价格的商品列表"
       operationId: "querySearchLtMin"
       consumes:
       - "application/json"
@@ -213,8 +213,8 @@ paths:
     get:
       tags:
       - "search"
-      summary: "返回纬雅的价格小于均价的所有产品"
-      description: "返回纬雅的价格小于均价的所有产品"
+      summary: "返回纬雅的价格大于均价的商品列表"
+      description: "返回纬雅的价格大于均价的商品列表"
       operationId: "querySearchLtAvg"
       consumes:
       - "application/json"
@@ -235,18 +235,18 @@ definitions:
     properties:
       id:
         type: "integer"
-        description: "Search ID, if create"
+        description: "建创后的ID"
       keywords:
         type: "string"
-        description: "And words, if all words in content, accept"
+        description: "商品的查找关键字，以空格分隔，找出满足所有关键字的商品"
         example: "iphone,7"
       e_keywords:
         type: "string"
-        description: "Exclusive words, if these words in content, skip"
+        description: "商品的查找关键字，以空格分隔，排除满足任意关键字的商品"
         example: "plus"
       o_keywords:
         type: "string"
-        description: "Or words, if any word in contect, accept"
+        description: "商品的查找关键字，以空格分隔，找出满足任意关键字的商品"
         example: "plus"
       description:
         type: "string"
@@ -284,15 +284,15 @@ definitions:
     properties:
       keywords:
         type: "string"
-        description: "And words, if all words in content, accept"
+        description: "商品的查找关键字，以空格分隔，找出满足所有关键字的商品"
         example: "iphone,7"
       e_keywords:
         type: "string"
-        description: "Exclusive words, if these words in content, skip"
+        description: "商品的查找关键字，以空格分隔，排除满足任意关键字的商品"
         example: "plus"
       o_keywords:
         type: "string"
-        description: "Or words, if any word in contect, accept"
+        description: "商品的查找关键字，以空格分隔，找出满足任意关键字的商品"
         example: "plus"
       url:
         type: "string"
