@@ -252,17 +252,21 @@ definitions:
         type: "string"
         example: "iphone 7 plus 金色"
       min:
-        type: "string"
+        type: "integer"
         example: "14.7"
         description: "最小价格"
       max:
-        type: "string"
+        type: "integer"
         example: "14.7"
         description: "最大价格"
       avg:
-        type: "string"
+        type: "integer"
+        example: "10"
+        description: "此种商品共查出的数量"        
+      count:
+        type: "integer"
         example: "14.7"
-        description: "平均价格"        
+        description: "平均价格"         
       prices:
         type: array
         description: "所有友商的价格列表"
@@ -310,12 +314,12 @@ definitions:
         type: "integer"
         description: "Search ID, if create, please ignore"
       search_id:
-        type: "string"
-        description: "search id"
+        type: "integer"
+        description: "与一个search关联"
         example: "1"
       product_id:
-        type: "string"
-        description: "product id"
+        type: "number"
+        description: "商品ID，来自拍拍或京东"
         example: "1"
       description:
         type: "string"
@@ -323,14 +327,23 @@ definitions:
         type: "string"
         example: "pp|jd"
       price:
-        type: "number"
+        type: "integer"
         example: "4099"
+        description: "商品的价格"
+      gap_price:
+        type: "integer"
+        example: "-99"
+        description: "商品与纬雅的差价"
       seller:
         type: "string"
         example: "纬雅|京东"
       url:
         type: "string"
-        example: "iphone 7 plus 金色"        
+        example: "iphone 7 plus 金色" 
+      saleState:
+        type: "integer"
+        example: "1|2" 
+        description: "1为正常销售，2为缺货"
       create_date:
         type: "string"
         description: "Create Datetime"
