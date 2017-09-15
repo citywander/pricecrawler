@@ -150,6 +150,9 @@ def ppProdSku(prodId, prod, curDocs):
             skuIds.append(str(attributeValueId))
             prodName = prodName.replace("{" + str(attributeValueIds[attributeValueId]) + "}", attributeName)
         sku = getSku(attributeIds, prodId)
+        #no sold
+        if sku["saleState"] == 2:
+            continue
         skuProd = {"name":prodName, "linkUrl": "/product/" + str(sku["id"]), "price":sku["price"], 
                        "monthPayments": str(sku["monthPayments"]), 
                        "months":str(sku["months"]),
@@ -534,6 +537,9 @@ def scanAllPrice():
 
 def fetchPriceByAttributes(priceId, productId, attributeIds):
     sku = getSku(attributeIds, productId)
+    hasSold = True
+    if sku["saleState"] == 2:
+        hasSold = False
     skuProd = {"price":sku["price"],
                "monthPayments": str(sku["monthPayments"]),
                "months": str(sku["months"]),
@@ -547,11 +553,16 @@ def fetchPriceByAttributes(priceId, productId, attributeIds):
     updatePpSql = ("update pp "
                    "set price = %(price)s, monthPayments=%(monthPayments)s,months=%(months)s, update_date=%(update_date)s "
                    "where product_id=%(product_id)s")
+    deletePriceSql = ("delete price where id=" + str(priceId))
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        cursor.execute(updatePriceSql, skuProd)
-        cursor.execute(updatePpSql, skuProd)
+        if hasSold:
+            cursor.execute(updatePriceSql, skuProd)
+            cursor.execute(updatePpSql, skuProd)
+        else:
+            logger.info("This product-%(product_id)s and this price-%(id)s will be deleted"%skuProd)
+            cursor.execute(deletePriceSql)
         conn.commit()
     finally:
         cursor.close()

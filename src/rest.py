@@ -44,8 +44,6 @@ def deleteSearch(searchId):
     pass
     return ('', 204)
 
-
-
 @app.route('/search/avg', methods=['GET'])
 def querySearchAvg():
     expand = request.args.get('expand')
@@ -57,13 +55,13 @@ def querySearchAvg():
         select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
         where p.product_id in(
-        select product_id from price p where seller='%s' and price <= (select avg(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999 and seller!='%s'))    
+        select product_id from price pp where seller='%s' and price > (select avg_price from search ps where ps.id=pp.search_id))    
     '''
     weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya, weiya)
+        query = query%(weiya,)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
@@ -81,13 +79,13 @@ def querySearchMin():
         select s.id,keywords,e_keywords,o_keywords, s.description, p.id, p.description, price, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
         from search s left join price p on s.id=p.search_id
         where p.product_id in(
-        select product_id from price p where seller='%s' and price <= (select min(price) from price pr where pr.search_id=p.search_id and price!=9999 and price!=99999 and seller!='%s'))    
+        select product_id from price pp where seller='%s' and price > (select min_price from search ps where ps.id=pp.search_id))    
     '''
     weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya, weiya)
+        query = query%(weiya,)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
