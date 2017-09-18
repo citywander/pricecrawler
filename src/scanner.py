@@ -33,14 +33,14 @@ update_price=("UPDATE price "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
 def refresProductCache():
-    query = ("SELECT id, product_id, name, price, seller FROM pp")
+    query = ("SELECT id, product_id, name, price, seller, saleState FROM pp")
     productCache=set()
     try:
         conn=connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        for (idd, product_id, name, price, seller) in cursor:
-            docs[str(product_id)]={"id": idd, "name": name.lower(), "seller":seller, "price":price}
+        for (idd, product_id, name, price, seller, saleState) in cursor:
+            docs[str(product_id)]={"id": idd, "name": name.lower(), "seller":seller, "price":price, "saleState":saleState}
             productCache.add(str(product_id))
         for product_id in productCache - set(docs.keys()):
             del docs[product_id]
@@ -190,7 +190,7 @@ def getReponseFromPp(url, payload, dead=True):
             responseContent = response.read()
             info = response.info()
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
-            expireDatetime = datetime.datetime.strptime("17 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
+            expireDatetime = datetime.datetime.strptime("21 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
                 print("Expire time is 19 Sep 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)
@@ -317,6 +317,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
             break
     wareList = prods["wareList"]["wareList"]
     huiyaPrice=docs[str(product_id)]["price"]
+    huisaleState=docs[str(product_id)]["saleState"]
     for ware in wareList:
         if jdself.lower() == "true" and not ware["self"]:
             continue
@@ -325,7 +326,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
         if international==0 and ware["international"]:
             continue
-        if float(huiyaPrice)/float(ware["jdPrice"]) > beyondPrice:
+        if float(huiyaPrice)/float(ware["jdPrice"]) > beyondPrice and huisaleState == 1:
             continue
         if ware["international"]:
             itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"

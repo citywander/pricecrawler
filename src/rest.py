@@ -1,6 +1,6 @@
 import json
 import yaml
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from globUtils import getFormatDate
 from scanner import scanPrice, docs, getReponseFromPp, insertOrUpdateDB, matchKeywords
 from globUtils import connectToDb, logger, handleUserInput, config
@@ -176,9 +176,13 @@ def addSearch():
             url = search["url"]
             product_id = url[url.rindex("/") + 1:]
             url = "/product/" + product_id       
-        
-    if not newPp(product_id):
+    
+    newSku = newPp(product_id)
+    if newSku == None:
         return responseError("E0003",(product_id,))
+    weiya=config.get("words", "weiya")
+    if newSku["seller"] != weiya:
+        return responseError("E0006")
     description = None
     if "description" in search:
         description = search["description"]
@@ -235,13 +239,13 @@ def addSearch():
         
 def newPp(product_id):
     if product_id in docs:
-        return True
+        return docs[str(product_id)]
     url="https://mstore.ppdai.com/product/getSkuProDeatils"    
     payload = {"productSkuId": product_id}
     res = getReponseFromPp(url, payload)  
     sku=res["responseContent"]
     if sku is None:
-        return False
+        return None
     url = "https://mstore.ppdai.com/product/getAttribute"
     payload = {"productSkuId": product_id}
     proContent = getReponseFromPp(url, payload)
@@ -262,7 +266,7 @@ def newPp(product_id):
            "skuIds" :",".join(skuIds),
            "seller": sku["seller"]}
     insertOrUpdateDB(skuProd)
-    return True    
+    return skuProd 
 
 @app.route('/search/<path:search_id>/price', methods=['POST'])
 def addPrice(search_id):
@@ -378,8 +382,13 @@ def api():
             return jsonify(yaml.load(stream))
         except yaml.YAMLError as exc:
             print(exc)
-    pass 
-        
+    pass
+
+
+@app.route('/static/<filename>')
+def send_page(filename):
+    return app.send_static_file(filename)
+
 def responseError(errorCode, args=None, message=None):
     errorMsg = config.get("error", errorCode)
     msgs = errorMsg.split("-")

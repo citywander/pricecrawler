@@ -1,0 +1,116 @@
+<html>
+<head>	
+<style>
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    text-align: left;
+    padding: 8px;
+}
+
+tr:nth-child(even){background-color: #f2f2f2}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+}
+</style>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>比价</title>
+	<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
+	<script>
+		$(document).ready(function(){
+			$("#searchBtn").click(function(){
+				$.post({
+				  type: 'POST',
+				  url: "/search",
+				  contentType:'application/json',
+				  data: JSON.stringify({
+				  	"url": $("#url").val(),
+				  	"keywords": $("#keywords").val(),
+				  	"e_keywords":$("#e_keywords").val(),
+				  	"o_keywords":$("#o_keywords").val()
+				  })
+				 			  
+				})
+				.done(function (res) {
+				  	$("#huiyaprice").text(res.target.price)
+				  	$("#maxprice").text(res.max)
+				  	$("#minprice").text(res.min)
+				  	$("#avgprice").text(res.avg)
+				  	if(res.target.saleState == 1){
+				  		$("#saleState").text("销售中")
+				  	}else{
+				  		$("#saleState").text("缺货中")
+				  	}
+				  	$(".delRow").remove()
+				  	for(i=0; i<res.prices.length-1;i++){
+				  		price=res.prices[i]
+				  		trs='<tr class="delRow">'
+				  		trs=trs+'<td>' + price.seller + '</td>'
+				  		trs=trs+'<td>' + price.price + '</td>'
+				  		trs=trs+'<td>' + price.gap_price + '</td>'
+				  		trs=trs+'<td><a href="' + price.url + '">' +price.description+'</></td>'
+				  		trs=trs+"<td>" + price.updateDate + "</td>"
+				  		trs=trs+'</tr>'
+				  		$('#pricesTable tr:last').after(trs);
+				  	}
+				 })
+				.fail(function (data) {
+				  	alert(data.responseJSON.errorMsg)
+				})
+			});
+		});
+	</script>
+</head>
+<body>
+填加一个比偶查询，填加完成后系统将以这个查询跟踪京东和拍拍其他商家的商品价格，<font color="red">空格</font>分隔
+<table style="width: 600px; ">
+	<tr>
+		<td style="width: 150px; ">纬雅商品URL:</td><td><input name="url" id="url" style="width: 365px; "></td>
+	</tr>
+	<tr>
+		<td>关键字:</td><td><input name="keywords" id="keywords" style="width: 365px; "></td>
+	</tr>
+	<tr>
+		<td>排除关键字:</td><td><input name="e_keywords" id="e_keywords" style="width: 365px; "></td>
+	</tr>
+	<tr>
+		<td>或关键字:</td><td><input name="o_keywords" id="o_keywords" style="width: 365px; "></td>
+	</tr>
+	<tr>
+		<td colspan="2"><input type="button" value="Submit" id="searchBtn"></td>
+	</tr>		
+</table>
+<br/>
+<HR style="border:1 dashed #987cb9" width="100%" color=#987cb9 SIZE=1>
+<br/>
+<table style="width: 600px; ">
+	<tr>
+		<td style="width: 150px; ">纬雅价格:</td><td><label id="huiyaprice"></label></td>
+	</tr>
+	<tr>
+		<td>最高价格:</td><td><label id="maxprice"></label></td>
+	</tr>
+	<tr>
+		<td>最低价格:</td><td><label id="minprice"></label></td>
+	</tr>
+	<tr>
+		<td>平均价格:</td><td><label id="avgprice"></label></td>
+	</tr>
+	<tr>
+		<td>销售状态:</td><td><label id="saleState"></label></td>
+	</tr>
+</table>
+<table style="width: 750px; " id="pricesTable">
+	<tr>
+		<th style="width: 80px; ">供应商</th><th style="width: 90px; ">价格</th><th style="width: 90px; ">差价</th><th style="width: 200px; ">描述</th><th style="width: 240px; ">更新时间</th>
+	</tr>
+	
+</table>
+</body>
+</html>
