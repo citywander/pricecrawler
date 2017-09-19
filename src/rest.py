@@ -1,5 +1,6 @@
 import json
 import yaml
+from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from globUtils import getFormatDate
 from scanner import scanPrice, docs, getReponseFromPp, insertOrUpdateDB, matchKeywords
@@ -151,10 +152,10 @@ def handleSearchResults(cursor, expand=False):
         if pid == None:
             continue
         if weiya == seller:
-            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate}
+            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M")}
             results[sid]["target"]=refPrice
         else:           
-            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : updateDate, "is_input":is_input})
+            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "is_input":is_input})
     
     for value in results.values():
         if not expand:
@@ -194,7 +195,7 @@ def addSearch():
         o_keywords = handleUserInput(search["o_keywords"])
     is_auto = 1
     if "is_auto" in search:
-        if search["is_auto"] != 0 or search["is_auto"] != "0":
+        if search["is_auto"] == 0 or search["is_auto"] == "0":
             is_auto = 0                  
     search["keywords"] = handleUserInput(search["keywords"])
     huiyaDescription=docs[product_id]["name"]
@@ -202,7 +203,7 @@ def addSearch():
         return responseError("E0005", (search["keywords"],))
     
     international = 1
-    if "international" in search and search["international"] == 0:
+    if "international" in search and (search["international"] == 0 or search["international"] == "0"):
         international = 0
         
     data_search = {

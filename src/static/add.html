@@ -31,8 +31,88 @@ h2 {
 	<title>比价</title>
 	<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
 	<script>
+function GetQueryString(name){
+     var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
+     var r = window.location.search.substr(1).match(reg);
+     if(r!=null)return  unescape(r[2]); return null;
+}
+
+function DeletePrice(searchId, priceId){
+	$.ajax({
+	    url: '/search/' + searchId +'/price/' + priceId,
+	    type: 'DELETE',
+	    success: function(result) {
+	    	alert("删除成功")
+	    }
+	});
+	showDetail(searchId)
+}
+
+function showDetail(searchId){	
+	if(searchId != null){
+		$.getJSON("/search/" + searchId, function( data ) {
+			$("#keywords").val(data.keywords)
+			$("#keywords").val(data.keywords)
+			$('#international').val(data.international);
+			if(data.international == "0"){
+				$('#international').prop('checked', false);
+			}else{
+				$('#international').prop('checked', true);
+			}
+			$('#is_auto').val(data.is_auto);
+			if(data.is_auto == "0"){
+				$('#is_auto').prop('checked', false);
+			}else{
+				$('#is_auto').prop('checked', true);
+			}
+			$("#url").val(data.target.url)
+			$("#e_keywords").val(data.e_keywords)
+			$("#o_keywords").val(data.o_keywords)
+			$("#huiyaprice").text(data.target.price)
+			$("#huiyaDesc").text(data.target.description)
+			$("#maxprice").text(data.max)
+			$("#minprice").text(data.min)
+			$("#avgprice").text(data.avg)
+		  	if(data.target.saleState == 1){
+		  		$("#saleState").text("销售中")
+		  	}else{
+		  		$("#saleState").text("缺货中")
+		  	}
+		  	$(".delRow").remove()
+		  	for(i=0; i<data.prices.length-1;i++){
+		  		price=data.prices[i]
+		  		trs='<tr class="delRow">'
+		  		trs=trs+'<td>' + price.seller + '</td>'
+		  		trs=trs+'<td>' + price.price + '</td>'
+		  		trs=trs+'<td>' + price.gap_price + '</td>'
+		  		trs=trs+'<td><a href="' + price.url + '">' +price.description+'</></td>'
+		  		trs=trs+"<td>" + price.updateDate + "</td>"
+		  		trs=trs+'<td><input type="button" value="删除" onclick="DeletePrice('+searchId + ',' + price.id +')"></td>'
+		  		trs=trs+'</tr>'
+		  		$('#pricesTable tr:last').after(trs);
+		  	}			
+		});	
+	}			
+}
+
 		$(document).ready(function(){
-			$("#searchBtn").click(function(){
+			searchId = GetQueryString("search_id")
+			showDetail(searchId);
+			$('#is_auto').change(function() {
+			      if($(this).is(":checked")) {
+			          $(this).val("1");
+			       }else{
+			       	$(this).val("0");
+			       }
+			});
+			$('#international').change(function() {
+			      if($(this).is(":checked")) {
+			          $(this).val("1");
+			       }else{
+			       	$(this).val("0");
+			       }
+			});			
+			$("#searchBtn").click(function(){				
 				$.post({
 				  type: 'POST',
 				  url: "/search",
@@ -41,12 +121,15 @@ h2 {
 				  	"url": $("#url").val(),
 				  	"keywords": $("#keywords").val(),
 				  	"e_keywords":$("#e_keywords").val(),
-				  	"o_keywords":$("#o_keywords").val()
+				  	"o_keywords":$("#o_keywords").val(),
+				  	"international":$("#international").val(),
+				  	"is_auto":$("#is_auto").val()
 				  })
 				 			  
 				})
 				.done(function (res) {
 				  	$("#huiyaprice").text(res.target.price)
+				  	$("#huiyaDesc").text(res.target.description)
 				  	$("#maxprice").text(res.max)
 				  	$("#minprice").text(res.min)
 				  	$("#avgprice").text(res.avg)
@@ -56,7 +139,7 @@ h2 {
 				  		$("#saleState").text("缺货中")
 				  	}
 				  	$(".delRow").remove()
-				  	for(i=0; i<res.prices.length-1;i++){
+				  	for(i=0; i<=res.prices.length-1;i++){
 				  		price=res.prices[i]
 				  		trs='<tr class="delRow">'
 				  		trs=trs+'<td>' + price.seller + '</td>'
@@ -64,6 +147,8 @@ h2 {
 				  		trs=trs+'<td>' + price.gap_price + '</td>'
 				  		trs=trs+'<td><a href="' + price.url + '">' +price.description+'</></td>'
 				  		trs=trs+"<td>" + price.updateDate + "</td>"
+				  		trs=trs+'<td><input type="button" value="删除" onclick="DeletePrice('+searchId + ',' + price.id +')"></td>'
+				  		
 				  		trs=trs+'</tr>'
 				  		$('#pricesTable tr:last').after(trs);
 				  	}
@@ -79,17 +164,23 @@ h2 {
 <h2>填加一个比偶查询，填加完成后系统将以这个查询跟踪京东和拍拍其他商家的商品价格，<font color="red">空格</font>分隔</h2>
 <table style="width: 600px; ">
 	<tr>
-		<td style="width: 150px; ">纬雅商品URL:</td><td><input name="url" id="url" style="width: 365px; "></td>
+		<td style="width: 150px; color: red">纬雅商品URL:</td><td><input name="url" id="url" style="width: 365px; "></td>
 	</tr>
 	<tr>
-		<td>关键字:</td><td><input name="keywords" id="keywords" style="width: 365px; "></td>
+		<td style="color: red">关键字(keywords):</td><td><input name="keywords" id="keywords" style="width: 365px; "></td>
 	</tr>
 	<tr>
-		<td>排除关键字:</td><td><input name="e_keywords" id="e_keywords" style="width: 365px; "></td>
+		<td>排除关键字(e_keywords):</td><td><input name="e_keywords" id="e_keywords" style="width: 365px; "></td>
 	</tr>
 	<tr>
-		<td>或关键字:</td><td><input name="o_keywords" id="o_keywords" style="width: 365px; "></td>
+		<td>或关键字(o_keywords):</td><td><input name="o_keywords" id="o_keywords" style="width: 365px; "></td>
 	</tr>
+	<tr>
+		<td>京东全球购:</td><td><input type="checkbox" name="international" id="international" checked="checked" value="1"/>全球购</td>
+	</tr>	
+	<tr>
+		<td>是否自动更新:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/>自动</td>
+	</tr>	
 	<tr>
 		<td colspan="2"><input type="button" value="Submit" id="searchBtn"></td>
 	</tr>		
@@ -97,10 +188,13 @@ h2 {
 <br/>
 <HR style="border:1 dashed #987cb9" width="100%" color=#987cb9 SIZE=1>
 <h2>填加结果</h2>
-<table style="width: 600px; ">
+<table style="width: 800px; ">
 	<tr>
-		<td style="width: 150px; ">纬雅价格:</td><td><label id="huiyaprice"></label></td>
+		<td style="width: 120px; ">纬雅价格:</td><td><label id="huiyaprice"></label></td>
 	</tr>
+	<tr>
+		<td>纬雅商品描述:</td><td><label id="huiyaDesc"></label></td>
+	</tr>	
 	<tr>
 		<td>最高价格:</td><td><label id="maxprice"></label></td>
 	</tr>
@@ -114,9 +208,9 @@ h2 {
 		<td>销售状态:</td><td><label id="saleState"></label></td>
 	</tr>
 </table>
-<table style="width: 750px; " id="pricesTable">
+<table style="width: 900px; " id="pricesTable">
 	<tr>
-		<th style="width: 80px; ">供应商</th><th style="width: 90px; ">价格</th><th style="width: 90px; ">差价</th><th style="width: 200px; ">描述</th><th style="width: 240px; ">更新时间</th>
+		<th style="width: 60px; ">供应商</th><th style="width: 50px; ">价格</th><th style="width: 50px; ">差价</th><th>描述</th><th style="width: 120px; ">更新时间</th><th></th>
 	</tr>
 	
 </table>
