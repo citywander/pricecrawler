@@ -298,8 +298,17 @@ definitions:
         type: "string"
         description: "商品的查找关键字，以空格分隔，找出满足任意关键字的商品"
         example: "plus"
+      international:
+        type: "integer"
+        description: "是否需要监控来自京东全球购的商品，默认为监控"
+        example: "0,1"
+      is_auto:
+        type: "integer"
+        description: "是否自动监控，如果为否，只监控填入的URL，如果为是，会随京东的页面而变化"
+        example: "0,1"      
       url:
         type: "string"
+        description: "来自pp来URL"
         example: "https://mstore.ppdai.com/product/1390"
       description:
         type: "string"
