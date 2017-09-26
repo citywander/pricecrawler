@@ -190,7 +190,7 @@ def getReponseFromPp(url, payload, dead=True):
             responseContent = response.read()
             info = response.info()
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
-            expireDatetime = datetime.datetime.strptime("21 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
+            expireDatetime = datetime.datetime.strptime("27 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
                 print("Expire time is 19 Sep 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)
@@ -471,8 +471,11 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
         conn.close()
         
 def updateMaxMinAvg():
-    update1="update search s set min_price=(select min(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
-    update2="update search s set max_price=(select max(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
+    update1='''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and saleState=1 and price =
+                (select min(price) from price p where s.id=p.search_id and saleState=1 group by search_id) limit 1)'''
+    update2='''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and saleState=1 and price =
+                (select max(price) from price p where s.id=p.search_id and saleState=1 group by search_id) limit 1)
+            '''
     update3="update search s set avg_price=(select avg(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
     update4="update price p , (select price, search_id from price pp where pp.seller='%s') t set p.gap_price=p.price - t.price where p.search_id=t.search_id"
     update5="update search s set count=(select count(*) from price p where p.search_id=s.id and seller!='%s' and saleState=1 )"

@@ -36,12 +36,12 @@ h2 {
 			for(i=0; i<=data.length-1;i++){
 		  		price=data[i]
 		  		trs='<tr class="delRow">'
-		  		trs=trs+'<td><a href=' + '/static/add.html?search_id='+ price.id +'>' + price.id + '</a></td>'
+		  		trs=trs+'<td><a target="_blank" href=' + '/static/add.html?search_id='+ price.id +'>' + price.id + '</a></td>'
 		  		trs=trs+'<td>' + price.target.description + '</td>'
 		  		trs=trs+'<td>' + price.target.price + '</td>'
 		  		trs=trs+'<td>' + price.avg + '</td>'
 		  		trs=trs+'<td>' + price.max + '</td>'
-		  		trs=trs+'<td>' + price.min + '</td>'
+		  		trs=trs+'<td><a  target="_blank" href=' + price.min_url +'>' + price.min + '</a></td>'
 		  		trs=trs+'<td>' + price.count + '</td>'
 		  		trs=trs+'<td>' + price.target.updateDate + '</td>'
 		  		trs=trs+'</tr>'

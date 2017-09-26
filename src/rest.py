@@ -48,36 +48,32 @@ def deleteSearch(searchId):
 @app.route('/search/avg', methods=['GET'])
 def querySearchAvg():
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
-        from search s left join price p on s.id=p.search_id
-        where p.product_id in(
-        select product_id from price pp where seller='%s' and saleState=1 and price > (select avg_price from search ps where ps.id=pp.search_id))    
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+        from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
+        where p.saleState=1 and p.price > (select avg_price from search ps where ps.id=s.id)
     '''
-    weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya,)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
         cursor.close()
         conn.close()
-    return jsonify(list(results.values()))       
+    return jsonify(list(results.values()))
 
 @app.route('/search/min', methods=['GET'])
 def querySearchMin():
     query='''
-        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price
-        from search s left join price p on s.id=p.search_id
-        where p.product_id in(
-        select product_id from price pp where seller='%s' and saleState=1 and price >= (select min_price from search ps where ps.id=pp.search_id))    
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+        from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
+        where p.saleState=1 and p.price >= (select price from price where id=s.min_price_id)
     '''
-    weiya=config.get("words", "weiya")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        query = query%(weiya,)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
@@ -91,7 +87,11 @@ def querySearch():
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'"
     weiya=config.get("words", "weiya")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id and p.seller='" +weiya + "'"
+    query = '''
+    select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+    from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
+    '''
     if not keywords is None:
         keywords = handleUserInput(keywords)
         likesQuery = list(map(likes, keywords.split(",")))
@@ -110,9 +110,13 @@ def querySearch():
 @app.route('/search/product/<path:product_id>', methods=['GET'])
 def querySearchByProductId(product_id):
     logger.info("Get Search")
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price  from search s left join price p on s.id=p.search_id "
+    query = '''
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+        from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id and s.product_id=
+    '''
     if product_id:
-        query = query + " where s.product_id=" + str(product_id)  
+        query = query + str(product_id)  
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -128,7 +132,12 @@ def querySearchByProductId(product_id):
 @app.route('/search/<path:searchId>', methods=['GET'])
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
-    query = "select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, price, gap_price, saleState, seller, url, p.product_id, p.update_date, s.is_auto, p.is_input,s.min_price,s.max_price,s.avg_price from search s left join price p on s.id=p.search_id where s.id=" + str(searchId)
+    query = '''
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+    from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id and s.id=
+    ''' 
+    query = query + str(searchId)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -143,10 +152,10 @@ def querySearchById(searchId):
 def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price) in cursor:
+    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url) in cursor:
         if sid not in results:
             prices = []
-            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count}
+            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count, "min_url": min_url}
         else:
             prices = results[sid]["prices"]
         if pid == None:
@@ -389,6 +398,24 @@ def api():
 @app.route('/static/<filename>')
 def send_page(filename):
     return app.send_static_file(filename)
+
+
+@app.route('/all', methods=['GET'])
+def all():
+    logger.info("Get all huiya")
+    query = "select name, skuNames,linkUrl FROM pp where seller='%s' and product_id not in (select product_id from search)" 
+    weiya=config.get("words", "weiya")
+    results = []
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query%weiya)
+        for (name, skuNames, linkUrl) in cursor:
+            results.append({"name" : name, "skuNames":skuNames, "linkUrl" : linkUrl})
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(results)    
 
 def responseError(errorCode, args=None, message=None):
     errorMsg = config.get("error", errorCode)
