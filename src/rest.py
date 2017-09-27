@@ -51,7 +51,8 @@ def querySearchAvg():
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
         from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
-        where p.saleState=1 and p.price > (select avg_price from search ps where ps.id=s.id)
+        where p.price > (select avg_price from search ps where ps.id=s.id) 
+        and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
     '''
     try:
         conn = connectToDb()
@@ -68,8 +69,9 @@ def querySearchMin():
     query='''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
-        from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
-        where p.saleState=1 and p.price >= (select price from price where id=s.min_price_id)
+        from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
+        where count!=0 and p.price > (select price from price where id=s.min_price_id)
+        and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
     '''
     try:
         conn = connectToDb()
@@ -79,7 +81,26 @@ def querySearchMin():
     finally:
         cursor.close()
         conn.close()
-    return jsonify(list(results.values()))    
+    return jsonify(list(results.values()))
+
+@app.route('/search/ltemin', methods=['GET'])
+def querySearchGteMin():
+    query='''
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+             p.update_date, s.is_auto, p.is_input, pp.price min_price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+        from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
+        where s.count=0 or p.price <= (select price from price where id=s.min_price_id)
+        and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
+    '''
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = handleSearchResults(cursor)
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(list(results.values())) 
 
 @app.route('/search', methods=['GET'])
 def querySearch():
@@ -402,7 +423,7 @@ def send_page(filename):
 @app.route('/all', methods=['GET'])
 def weiya():
     logger.info("Get all huiya")
-    query = "select name, skuNames,linkUrl FROM pp where seller='%s' and product_id not in (select product_id from search)" 
+    query = "select name, skuNames,linkUrl FROM pp where seller='%s' and product_id not in (select product_id from search) order by name" 
     weiya=config.get("words", "weiya")
     results = []
     try:

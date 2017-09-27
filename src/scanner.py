@@ -471,10 +471,10 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
         conn.close()
         
 def updateMaxMinAvg():
-    update1='''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and saleState=1 and price =
-                (select min(price) from price p where s.id=p.search_id and saleState=1 group by search_id) limit 1)'''
-    update2='''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and saleState=1 and price =
-                (select max(price) from price p where s.id=p.search_id and saleState=1 group by search_id) limit 1)
+    update1='''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and price =
+                (select min(price) from price p where s.id=p.search_id and s.product_id!=p.product_id group by search_id) limit 1)'''
+    update2='''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and price =
+                (select max(price) from price p where s.id=p.search_id and s.product_id!=p.product_id group by search_id) limit 1)
             '''
     update3="update search s set avg_price=(select avg(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
     update4="update price p , (select price, search_id from price pp where pp.seller='%s') t set p.gap_price=p.price - t.price where p.search_id=t.search_id"

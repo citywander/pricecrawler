@@ -1,36 +1,21 @@
 <html>
 <head>	
-<style>
-table {
-    border-collapse: collapse;
-    width: 100%;
-}
-
-th, td {
-    text-align: left;
-    padding: 8px;
-}
-
-tr:nth-child(even){background-color: #f2f2f2}
-
-th {
-    background-color: #4CAF50;
-    color: white;
-}
-h2 {
-    color: #2a70d0;
-    margin: .3em 0 .9em;
-    font-size: 1.4em;
-    font-family: arial,helvetica,sans-serif;
-    padding-right: 7em;
-    clear: left;
-}
-</style>
-	<meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>比价</title>
-	<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
-	<script>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>比价</title>
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+<link type="text/css" rel="stylesheet" href="style/price.css" />
+<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
+<script>
+var fields=[
+  	  {name: "id", title:"供应商", width: 50, sorting: false},
+  	  {name: "target.description", title:"价格", width: 400},
+  	  {name: "target.price", title:"差价", width: 50},
+  	  {name: "min", title:"描述", width: 50},
+  	  {name: "target.updateDate", title:"更新时间", width: 80}
+];
 function GetQueryString(name){
      var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
      var r = window.location.search.substr(1).match(reg);
@@ -121,56 +106,57 @@ function showDetail(searchId){
 				    }
 				});
 			});			
-			$("#searchBtn").click(function(){				
-				$.post({
-				  type: 'POST',
-				  url: "/search",
-				  contentType:'application/json',
-				  data: JSON.stringify({
-				  	"url": $("#url").val(),
-				  	"keywords": $("#keywords").val(),
-				  	"e_keywords":$("#e_keywords").val(),
-				  	"o_keywords":$("#o_keywords").val(),
-				  	"international":$("#international").val(),
-				  	"is_auto":$("#is_auto").val()
-				  })
-				 			  
-				})
-				.done(function (res) {
-				  	$("#huiyaprice").text(res.target.price)
-				  	$("#huiyaDesc").text(res.target.description)
-				  	$("#maxprice").text(res.max)
-				  	$("#minprice").text(res.min)
-				  	$("#searchId").val(res.id)
-				  	$("#avgprice").text(res.avg)
-				  	if(res.target.saleState == 1){
-				  		$("#saleState").text("销售中")
-				  	}else{
-				  		$("#saleState").text("缺货中")
-				  	}
-				  	$(".delRow").remove()
-				  	for(i=0; i<=res.prices.length-1;i++){
-				  		price=res.prices[i]
-				  		trs='<tr class="delRow">'
-				  		trs=trs+'<td>' + price.seller + '</td>'
-				  		trs=trs+'<td>' + price.price + '</td>'
-				  		trs=trs+'<td>' + price.gap_price + '</td>'
-				  		trs=trs+'<td><a href="' + price.url + '">' +price.description+'</></td>'
-				  		trs=trs+"<td>" + price.updateDate + "</td>"
-				  		trs=trs+'<td><input type="button" value="删除" onclick="DeletePrice('+searchId + ',' + price.id +')"></td>'
-				  		
-				  		trs=trs+'</tr>'
-				  		$('#pricesTable tr:last').after(trs);
-				  	}
-				 })
-				.fail(function (data) {
-				  	alert(data.responseJSON.errorMsg)
-				})
+			$("#addBtn").click(function(){
+				$("#jsGrid").jsGrid({
+			    	  width: "100%",
+			    	  height: "auto",
+			    	  sorting: true,
+			    	  autoload:   true,
+			    	  paging:     false,
+	
+			    	  controller: {
+			    	    loadData: function(filter) {
+			    	      return $.post({
+							  type: 'POST',
+							  url: "/search",
+							  contentType:'application/json',
+							  data: JSON.stringify({
+							  	"url": $("#url").val(),
+							  	"keywords": $("#keywords").val(),
+							  	"e_keywords":$("#e_keywords").val(),
+							  	"o_keywords":$("#o_keywords").val(),
+							  	"international":$("#international").val(),
+							  	"is_auto":$("#is_auto").val()
+							  })
+							})
+							.done(function (res) {
+							  	$("#huiyaprice").text(res.target.price)
+						  	$("#huiyaDesc").text(res.target.description)
+						  	$("#maxprice").text(res.max)
+						  	$("#minprice").text(res.min)
+						  	$("#searchId").val(res.id)
+						  	$("#avgprice").text(res.avg)
+						  	if(res.target.saleState == 1){
+						  		$("#saleState").text("销售中")
+						  	}else{
+						  		$("#saleState").text("缺货中")
+						  	}
+							 })
+							.fail(function (data) {
+							  	alert(data.responseJSON.errorMsg)
+							});
+			    	    }
+			    	  },
+			    	  fields: fields
+			    });
+				
 			});
 		});
 	</script>
 </head>
 <body>
+<div class="row">
+<div class="info">
 <input type="hidden" id="searchId">
 <h2>填加一个比偶查询，填加完成后系统将以这个查询跟踪京东和拍拍其他商家的商品价格，<font color="red">空格</font>分隔</h2>
 <table style="width: 600px; ">
@@ -191,9 +177,12 @@ function showDetail(searchId){
 	</tr>	
 	<tr>
 		<td>是否自动更新:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/>自动</td>
-	</tr>	
+	</tr>
 	<tr>
-		<td><input type="button" value="添加" id="searchBtn"></td>
+		<td>二手:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/>自动</td>
+	</tr>
+	<tr>
+		<td><input type="button" value="添加" id="addBtn"></td>
 		<td colspan="2"><input type="button" value="删除" id="delBtn"></td>
 	</tr>		
 </table>
@@ -220,11 +209,9 @@ function showDetail(searchId){
 		<td>销售状态:</td><td><label id="saleState"></label></td>
 	</tr>
 </table>
-<table style="width: 900px; " id="pricesTable">
-	<tr>
-		<th style="width: 60px; ">供应商</th><th style="width: 50px; ">价格</th><th style="width: 50px; ">差价</th><th>描述</th><th style="width: 120px; ">更新时间</th><th></th>
-	</tr>
-	
-</table>
+</div>
+
+<div id="jsGrid"></div>
+</div>
 </body>
 </html>
