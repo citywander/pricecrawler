@@ -1,0 +1,39 @@
+<html>
+<head>	
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>比价</title>
+	<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
+	<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
+	<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
+<script>
+    $(document).ready(function(){
+    $("#jsGrid").jsGrid({
+    	  width: "100%",
+    	  height: "auto",
+
+    	  autoload:   true,
+    	  paging:     false,
+
+    	  controller: {
+    	    loadData: function(filter) {
+    	      return $.ajax({
+    	        url: "/all",
+    	        dataType: "json"
+    	      });
+    	    }
+    	  },
+    	  fields: [
+    	    {name: "name", title:"名称", width: 200},
+    	    {name: "skuNames", title:"属性", width: 80,  textField: "skuNames"},
+    	    {name: "linkUrl", title:"链接", width: 100}
+    	  ]
+    });
+    })
+</script>	
+</head>
+<body>
+<div id="jsGrid"></div>
+</body>
+</html>

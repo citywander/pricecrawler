@@ -1,7 +1,7 @@
 import json
 import yaml
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from globUtils import getFormatDate
 from scanner import scanPrice, docs, getReponseFromPp, insertOrUpdateDB, matchKeywords
 from globUtils import connectToDb, logger, handleUserInput, config
@@ -86,7 +86,6 @@ def querySearch():
     logger.info("Get Search")
     keywords = request.args.get('keywords')
     likes = lambda key : " keywords like '%" + key +"%'"
-    weiya=config.get("words", "weiya")
     query = '''
     select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
@@ -401,7 +400,7 @@ def send_page(filename):
 
 
 @app.route('/all', methods=['GET'])
-def all():
+def weiya():
     logger.info("Get all huiya")
     query = "select name, skuNames,linkUrl FROM pp where seller='%s' and product_id not in (select product_id from search)" 
     weiya=config.get("words", "weiya")
