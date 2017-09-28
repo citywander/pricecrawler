@@ -33,7 +33,7 @@
   	    {name: "target.price", title:"纬雅价", width: 50, sorter: "number"},
   	    {name: "min", title:"最低价", width: 50, sorter: "number"},
   	  	{name: "count", title:"友商数", width: 50, sorter: "number"},
-  	  	{name: "target.updateDate", title:"更新时间", width: 80}
+  	  	{name: "target.updateDate", title:"更新时间", width: 100}
   	  ];
 		var listResult = function(data){
 			$(".delRow").remove()
@@ -81,7 +81,8 @@
 			}
 			if(search == "search"){
 				keywords = GetQueryString("keywords")
-				url ="/search?keywords=" + keywords;
+				tag = GetQueryString("tag")
+				url ="/search?keywords=" + keywords + "&tag=" + tag
 			}
 			refreshGrid(url);
 			$("#lteminBtn").click(function(){
@@ -108,8 +109,9 @@
        				function(){ $(this).css('background', '#cde69c') }
 				);
 				$('span.tag').click(function(event){
-					window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=search&keywords=' + $("#keywords").val());
-					url="/search?keywords=" + $("#keywords").val() + "&tag=" + $(this).find('span').text()
+					tag=$(this).find('span').text().trim()
+					url="/search?keywords=" + $("#keywords").val() + "&tag=" + tag
+					window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=search&keywords=' + $("#keywords").val() + "&tag=" + tag);
 					refreshGrid(url);
 				})		
 			});

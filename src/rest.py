@@ -106,7 +106,6 @@ def querySearchGteMin():
 def querySearch():
     logger.info("Get Search")
     
-    likes = lambda key : " keywords like '%" + key +"%'"
     query = '''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
@@ -267,7 +266,6 @@ def addSearch():
     if "international" in search and (search["international"] == 0 or search["international"] == "0"):
         international = 0
        
-    
     data_search = {
         "product_id":product_id,
         'keywords': search["keywords"],
@@ -318,6 +316,7 @@ def storeTags(tags):
     tagsDict={}
     tagsId=[]
     try:
+        cursor.execute("delete from tag where id not in (select tag_id from search_tag)")
         cursor.execute(query)
         for (tagId, name) in cursor:
             tagsDict[name]=tagId
