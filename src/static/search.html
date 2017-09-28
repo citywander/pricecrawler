@@ -108,6 +108,8 @@
        				function(){ $(this).css('background', '#cde69c') }
 				);
 				$('span.tag').click(function(event){
+					window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=search&keywords=' + $("#keywords").val());
+					url="/search?keywords=" + $("#keywords").val() + "&tag=" + $(this).find('span').text()
 					refreshGrid(url);
 				})		
 			});

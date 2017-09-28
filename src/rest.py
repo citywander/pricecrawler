@@ -113,16 +113,18 @@ def querySearch():
         from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
     '''
     keywords = request.args.get('keywords')
-    query = getQueryByKeywords(query, keywords)
+    tag = request.args.get('tag')
+    (query, hasWhere) = getQueryByKeywords(query, keywords)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
+        query = getQueryByTag(cursor, query, tag, hasWhere)
         cursor.execute(query)
         results = handleSearchResults(cursor)
     finally:
         cursor.close()
         conn.close()
-    return list(results.values())
+    return jsonify(list(results.values()))
 
 def getQueryByKeywords(query, keywords):
     likes = lambda key : " keywords like '%" + key +"%'"
@@ -135,14 +137,17 @@ def getQueryByKeywords(query, keywords):
         pass   
     return (query, hasWhere)
 
-def getQueryByTag(query, tag):
-    likes = lambda key : " keywords like '%" + key +"%'"
-    if not keywords is None:
-        keywords = handleUserInput(keywords)
-        likesQuery = list(map(likes, keywords.split(",")))
-        query = query  + "where " + " and ".join(likesQuery)
-        pass   
-    return query
+def getQueryByTag(cursor, query, tag, hasWhere):
+    if tag is None:
+        return query
+    cursor.execute(('select id from tag where name=%(tag)s'),{"tag": tag.strip()})
+    result = cursor.fetchone()
+    if result is None:
+        return query
+    if hasWhere:
+        return query + " and s.id in (select search_id from search_tag where tag_id=" + str(result[0]) + ")"
+    else:
+        return query + " where s.id in (select search_id from search_tag where tag_id=" + str(result[0]) + ")"
 
 @app.route('/search/product/<path:product_id>', methods=['GET'])
 def querySearchByProductId(product_id):
