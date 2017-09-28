@@ -10,11 +10,11 @@
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
 <script>
 var fields=[
-  	  {name: "id", title:"供应商", width: 50, sorting: false},
-  	  {name: "target.description", title:"价格", width: 400},
-  	  {name: "target.price", title:"差价", width: 50},
-  	  {name: "min", title:"描述", width: 50},
-  	  {name: "target.updateDate", title:"更新时间", width: 80}
+  	  {name: "seller", title:"供应商", width: 50, sorting: false},
+  	  {name: "description", title:"描述", width: 400},
+  	  {name: "price", title:"价格", width: 50},
+  	  {name: "gap_price", title:"差价", width: 50},
+  	  {name: "updateDate", title:"更新时间", width: 80}
 ];
 function GetQueryString(name){
      var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
@@ -33,11 +33,36 @@ function DeletePrice(searchId, priceId){
 	showDetail(searchId)
 }
 
+function showGrid(res){
+  	$("#huiyaprice").text(res.target.price)
+  	$("#huiyaDesc").text(res.target.description)
+  	$("#maxprice").text(res.max)
+  	$("#minprice").text(res.min)
+  	$("#searchId").val(res.id)
+  	$("#avgprice").text(res.avg)
+  	if(res.target.saleState == 1){
+  		$("#saleState").text("销售中")
+  	}else{
+  		$("#saleState").text("缺货中")
+  	}
+	$("#jsGrid").jsGrid({
+    	  width: "100%",
+    	  height: "auto",
+    	  sorting: true,
+    	  autoload:   true,
+    	  paging:     false,
+		  data: res.prices,
+    	  fields: fields
+    });
+}
+
 function showDetail(searchId){	
 	if(searchId != null){
 		$.getJSON("/search/" + searchId, function( data ) {
+			$("#url").val(data.target.url)
 			$("#keywords").val(data.keywords)
-			$("#keywords").val(data.keywords)
+			$("#e_keywords").val(data.e_keywords)
+			$("#o_keywords").val(data.o_keywords)
 			$('#international').val(data.international);
 			if(data.international == "0"){
 				$('#international').prop('checked', false);
@@ -50,34 +75,19 @@ function showDetail(searchId){
 			}else{
 				$('#is_auto').prop('checked', true);
 			}
-			$("#url").val(data.target.url)
-			$("#e_keywords").val(data.e_keywords)
-			$("#o_keywords").val(data.o_keywords)
-			$("#huiyaprice").text(data.target.price)
-			$("#huiyaDesc").text(data.target.description)
-			$("#maxprice").text(data.max)
-			$("#minprice").text(data.min)
-			$("#avgprice").text(data.avg)
-		  	if(data.target.saleState == 1){
-		  		$("#saleState").text("销售中")
-		  	}else{
-		  		$("#saleState").text("缺货中")
-		  	}
-		  	$(".delRow").remove()
-		  	for(i=0; i<data.prices.length-1;i++){
-		  		price=data.prices[i]
-		  		trs='<tr class="delRow">'
-		  		trs=trs+'<td>' + price.seller + '</td>'
-		  		trs=trs+'<td>' + price.price + '</td>'
-		  		trs=trs+'<td>' + price.gap_price + '</td>'
-		  		trs=trs+'<td><a href="' + price.url + '">' +price.description+'</></td>'
-		  		trs=trs+"<td>" + price.updateDate + "</td>"
-		  		trs=trs+'<td><input type="button" value="删除" onclick="DeletePrice('+searchId + ',' + price.id +')"></td>'
-		  		trs=trs+'</tr>'
-		  		$('#pricesTable tr:last').after(trs);
-		  	}			
-		});	
-	}			
+			$("#addBtn").val("更新")
+			showGrid(data);
+		});
+		return;
+	}
+	$("#jsGrid").jsGrid({
+  	  width: "100%",
+  	  height: "auto",
+  	  sorting: true,
+  	  autoload:   true,
+  	  paging:     false,
+  	  fields: fields
+  	});
 }
 		$(document).ready(function(){
 			searchId = GetQueryString("search_id")
@@ -107,48 +117,26 @@ function showDetail(searchId){
 				});
 			});			
 			$("#addBtn").click(function(){
-				$("#jsGrid").jsGrid({
-			    	  width: "100%",
-			    	  height: "auto",
-			    	  sorting: true,
-			    	  autoload:   true,
-			    	  paging:     false,
-	
-			    	  controller: {
-			    	    loadData: function(filter) {
-			    	      return $.post({
-							  type: 'POST',
-							  url: "/search",
-							  contentType:'application/json',
-							  data: JSON.stringify({
-							  	"url": $("#url").val(),
-							  	"keywords": $("#keywords").val(),
-							  	"e_keywords":$("#e_keywords").val(),
-							  	"o_keywords":$("#o_keywords").val(),
-							  	"international":$("#international").val(),
-							  	"is_auto":$("#is_auto").val()
-							  })
-							})
-							.done(function (res) {
-							  	$("#huiyaprice").text(res.target.price)
-						  	$("#huiyaDesc").text(res.target.description)
-						  	$("#maxprice").text(res.max)
-						  	$("#minprice").text(res.min)
-						  	$("#searchId").val(res.id)
-						  	$("#avgprice").text(res.avg)
-						  	if(res.target.saleState == 1){
-						  		$("#saleState").text("销售中")
-						  	}else{
-						  		$("#saleState").text("缺货中")
-						  	}
-							 })
-							.fail(function (data) {
-							  	alert(data.responseJSON.errorMsg)
-							});
-			    	    }
-			    	  },
-			    	  fields: fields
-			    });
+				$.post({
+					  type: 'POST',
+					  url: "/search",
+					  contentType:'application/json',
+					  data: JSON.stringify({
+					  	"url": $("#url").val(),
+					  	"keywords": $("#keywords").val(),
+					  	"e_keywords":$("#e_keywords").val(),
+					  	"o_keywords":$("#o_keywords").val(),
+					  	"international":$("#international").val(),
+					  	"is_auto":$("#is_auto").val()
+					  })
+					 			  
+					})
+					.done(function (res) {
+						showGrid(res);
+					 })
+					.fail(function (data) {
+					  	alert(data.responseJSON.errorMsg)
+					})
 				
 			});
 		});
@@ -173,13 +161,13 @@ function showDetail(searchId){
 		<td>或关键字(o_keywords):</td><td><input name="o_keywords" id="o_keywords" style="width: 365px; "></td>
 	</tr>
 	<tr>
-		<td>京东全球购:</td><td><input type="checkbox" name="international" id="international" checked="checked" value="1"/>全球购</td>
+		<td>京东全球购:</td><td><input type="checkbox" name="international" id="international" checked="checked" value="1"/></td>
 	</tr>	
 	<tr>
-		<td>是否自动更新:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/>自动</td>
+		<td>自动更新:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/></td>
 	</tr>
 	<tr>
-		<td>二手:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/>自动</td>
+		<td>二手:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/></td>
 	</tr>
 	<tr>
 		<td><input type="button" value="添加" id="addBtn"></td>
