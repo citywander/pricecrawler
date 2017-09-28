@@ -105,18 +105,15 @@ def querySearchGteMin():
 @app.route('/search', methods=['GET'])
 def querySearch():
     logger.info("Get Search")
-    keywords = request.args.get('keywords')
+    
     likes = lambda key : " keywords like '%" + key +"%'"
     query = '''
-    select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
-    from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
+        from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
     '''
-    if not keywords is None:
-        keywords = handleUserInput(keywords)
-        likesQuery = list(map(likes, keywords.split(",")))
-        query = query  + "where " + " and ".join(likesQuery)
-        pass
+    keywords = request.args.get('keywords')
+    query = getQueryByKeywords(query, keywords)
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -125,7 +122,27 @@ def querySearch():
     finally:
         cursor.close()
         conn.close()
-    return jsonify(list(results.values()))
+    return list(results.values())
+
+def getQueryByKeywords(query, keywords):
+    likes = lambda key : " keywords like '%" + key +"%'"
+    hasWhere = False
+    if not keywords is None:
+        keywords = handleUserInput(keywords)
+        likesQuery = list(map(likes, keywords.split(",")))
+        query = query  + "where " + " and ".join(likesQuery)
+        hasWhere = True
+        pass   
+    return (query, hasWhere)
+
+def getQueryByTag(query, tag):
+    likes = lambda key : " keywords like '%" + key +"%'"
+    if not keywords is None:
+        keywords = handleUserInput(keywords)
+        likesQuery = list(map(likes, keywords.split(",")))
+        query = query  + "where " + " and ".join(likesQuery)
+        pass   
+    return query
 
 @app.route('/search/product/<path:product_id>', methods=['GET'])
 def querySearchByProductId(product_id):
@@ -144,10 +161,11 @@ def querySearchByProductId(product_id):
         results = handleSearchResults(cursor, expand=True)
         if len(results) == 0:
             return responseError("E0003",(product_id, ))
+        searchResult = addTagsToSearch(list(results.values())[0], cursor)
     finally:
         cursor.close()
         conn.close()
-    return jsonify(list(results.values())[0])    
+    return jsonify(searchResult)    
 
 @app.route('/search/<path:searchId>', methods=['GET'])
 def querySearchById(searchId):
@@ -163,11 +181,17 @@ def querySearchById(searchId):
         cursor = conn.cursor()
         cursor.execute(query)
         results = handleSearchResults(cursor, expand=True)
+        searchResult = addTagsToSearch(results[int(searchId)], cursor)
     finally:
         cursor.close()
         conn.close()
-    return jsonify(results[int(searchId)])
+    return jsonify(searchResult)
 
+
+def addTagsToSearch(searchResult, cursor):
+    tags=getTagsBySearch(searchResult["id"], cursor)
+    searchResult["tags"] = tags
+    return searchResult
 
 def handleSearchResults(cursor, expand=False):
     results = {}
@@ -225,7 +249,10 @@ def addSearch():
     is_auto = 1
     if "is_auto" in search:
         if search["is_auto"] == 0 or search["is_auto"] == "0":
-            is_auto = 0                  
+            is_auto = 0
+    if "tags" not in search:
+        return responseError("E0007")
+    
     search["keywords"] = handleUserInput(search["keywords"])
     huiyaDescription=docs[product_id]["name"]
     if not matchKeywords(huiyaDescription, search["keywords"], e_keywords, o_keywords):
@@ -234,7 +261,8 @@ def addSearch():
     international = 1
     if "international" in search and (search["international"] == 0 or search["international"] == "0"):
         international = 0
-        
+       
+    
     data_search = {
         "product_id":product_id,
         'keywords': search["keywords"],
@@ -247,6 +275,7 @@ def addSearch():
         "update_date": getFormatDate()
     }
     searchId = getSearchByProductId(product_id)
+    tagsId=storeTags(search["tags"])
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -257,6 +286,7 @@ def addSearch():
         else:
             data_search["id"] = searchId
             cursor.execute(update_search, data_search)
+        insertSearchTag(searchId, tagsId, cursor)
         conn.commit()
         scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId, international)
         return querySearchById(searchId)
@@ -266,6 +296,48 @@ def addSearch():
     finally:
         cursor.close()
         conn.close()
+
+def insertSearchTag(searchId, tagsId, cursor):
+    cursor.execute("delete from search_tag where search_id=" + str(searchId))
+    addTag=("INSERT INTO search_tag(search_id, tag_id) values(%(search_id)s, %(tag_id)s)")
+    for tagId in tagsId:
+        cursor.execute(addTag, {"search_id": searchId, "tag_id": tagId})
+    pass
+
+def storeTags(tags):
+    tagsValue=tags.split(",")
+    conn = connectToDb()
+    cursor = conn.cursor()
+    query = ("SELECT id,name FROM tag")
+    addTag=("INSERT INTO tag(name) values(%(name)s)")
+    tagsDict={}
+    tagsId=[]
+    try:
+        cursor.execute(query)
+        for (tagId, name) in cursor:
+            tagsDict[name]=tagId
+        for tag in tagsValue:
+            if tag in tagsDict:
+                tagsId.append(tagsDict[tag])
+            else:
+                cursor.execute(addTag, {"name": tag})
+                tagsId.append(cursor.lastrowid)
+        conn.commit()
+    except Exception as e:
+        logger.error(str(e))
+        return responseError("G0001", (), str(e)) 
+    finally:
+        cursor.close()
+        conn.close()
+    return tagsId
+
+def getTagsBySearch(searchId, cursor):
+    query = ("SELECT name FROM tag t, search_tag s where s.tag_id=t.id and s.search_id=" + str(searchId))
+    cursor.execute(query)
+    tags=[]
+    for (name,) in cursor:
+        tags.append(name)
+    return tags
         
 def newPp(product_id):
     if product_id in docs:
@@ -435,7 +507,23 @@ def weiya():
     finally:
         cursor.close()
         conn.close()
-    return jsonify(results)    
+    return jsonify(results)
+
+@app.route('/tags', methods=['GET'])
+def tags():
+    logger.info("Get all huiya")
+    query = "select name FROM tag" 
+    results = []
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        for (name,) in cursor:
+            results.append(name)
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(results)
 
 def responseError(errorCode, args=None, message=None):
     errorMsg = config.get("error", errorCode)

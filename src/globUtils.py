@@ -59,7 +59,7 @@ def handleUserInput(content):
     for val in values:
         if val == "":
             continue
-        arr.append(val)
+        arr.append(val.strip())
     return ",".join(arr)
 
 class Periodic(object):

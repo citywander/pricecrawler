@@ -190,7 +190,7 @@ def getReponseFromPp(url, payload, dead=True):
             responseContent = response.read()
             info = response.info()
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
-            expireDatetime = datetime.datetime.strptime("27 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
+            expireDatetime = datetime.datetime.strptime("30 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
                 print("Expire time is 19 Sep 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)

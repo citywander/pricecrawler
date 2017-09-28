@@ -1,0 +1,32 @@
+.row {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 0;
+    margin-bottom: 0;
+    max-width: 75rem;
+}
+.info table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.info th, .info td {
+    text-align: left;
+    padding: 4px;
+}
+
+tr:nth-child(even){background-color: #f2f2f2}
+
+.info th {
+    background-color: #4CAF50;
+    color: white;
+}
+.info h2 {
+    color: #2a70d0;
+    margin: .3em 0 .9em;
+    font-size: 1.4em;
+    font-family: arial,helvetica,sans-serif;
+    padding-right: 7em;
+    clear: left;
+}

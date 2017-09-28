@@ -5,9 +5,11 @@
 <title>比价</title>
 <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.css" />
 <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid-theme.min.css" />
+<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-tagsinput/1.3.6/jquery.tagsinput.min.css" />
 <link type="text/css" rel="stylesheet" href="style/price.css" />
-<script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.js" ></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-tagsinput/1.3.6/jquery.tagsinput.min.js"></script>
 <script>
 var fields=[
   	  {name: "seller", title:"供应商", width: 50, sorting: false},
@@ -64,6 +66,9 @@ function showDetail(searchId){
 			$("#e_keywords").val(data.e_keywords)
 			$("#o_keywords").val(data.o_keywords)
 			$('#international').val(data.international);
+			for(tagIndex in data.tags){
+				$('#tags').addTag(data.tags[tagIndex]);			
+			}
 			if(data.international == "0"){
 				$('#international').prop('checked', false);
 			}else{
@@ -90,6 +95,7 @@ function showDetail(searchId){
   	});
 }
 		$(document).ready(function(){
+			$('#tags').tagsInput({'defaultText':''});
 			searchId = GetQueryString("search_id")
 			showDetail(searchId);
 			$('#is_auto').change(function() {
@@ -127,7 +133,8 @@ function showDetail(searchId){
 					  	"e_keywords":$("#e_keywords").val(),
 					  	"o_keywords":$("#o_keywords").val(),
 					  	"international":$("#international").val(),
-					  	"is_auto":$("#is_auto").val()
+					  	"is_auto":$("#is_auto").val(),
+					  	"tags":$("#tags").val()
 					  })
 					 			  
 					})
@@ -146,7 +153,6 @@ function showDetail(searchId){
 <div class="row">
 <div class="info">
 <input type="hidden" id="searchId">
-<h2>填加一个比偶查询，填加完成后系统将以这个查询跟踪京东和拍拍其他商家的商品价格，<font color="red">空格</font>分隔</h2>
 <table style="width: 600px; ">
 	<tr>
 		<td style="width: 150px; color: red">纬雅商品URL:</td><td><input name="url" id="url" style="width: 365px; "></td>
@@ -154,6 +160,9 @@ function showDetail(searchId){
 	<tr>
 		<td style="color: red">关键字(keywords):</td><td><input name="keywords" id="keywords" style="width: 365px; "></td>
 	</tr>
+	<tr>
+		<td style="color: red">标签(Tags):</td><td><input name="tags" id="tags" value="" /></td>
+	</tr>	
 	<tr>
 		<td>排除关键字(e_keywords):</td><td><input name="e_keywords" id="e_keywords" style="width: 365px; "></td>
 	</tr>
@@ -174,7 +183,7 @@ function showDetail(searchId){
 		<td colspan="2"><input type="button" value="删除" id="delBtn"></td>
 	</tr>		
 </table>
-<br/>
+
 <HR style="border:1 dashed #987cb9" width="100%" color=#987cb9 SIZE=1>
 <h2>填加结果</h2>
 <table style="width: 800px; ">
