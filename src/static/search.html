@@ -11,10 +11,6 @@
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery-tagsinput/1.3.6/jquery.tagsinput.min.js"></script>
 	<script>
-	jsGrid.sortStrategies.gstr = function(index1, index2) {
-    	console.log(index1+"----" + index2)
-        return index1 >index2;
-    };
     jsGrid.Grid.prototype._sortData= function() {
         var sortFactor = this._sortFactor(),
         sortField = this._sortField;
@@ -31,7 +27,13 @@
   	    }},
   	    {name: "target.description", title:"描述", width: 400},
   	    {name: "target.price", title:"纬雅价", width: 50, sorter: "number"},
-  	    {name: "min", title:"最低价", width: 50, sorter: "number"},
+  	    {name: "min", title:"最低价", width: 50, sorter: "number", itemTemplate:function(value, item){
+  	    	if(value == null){
+  	    		return value
+  	    	}
+  	    	return '<a target="_blank" href=' + item["min_url"] +'>' + value + '</a>'
+  	    }},
+  	    {name: "gap_price", title:"差价", width: 50, sorter: "number"},
   	  	{name: "count", title:"友商数", width: 50, sorter: "number"},
   	  	{name: "target.updateDate", title:"更新时间", width: 100}
   	  ];
@@ -84,6 +86,10 @@
 				tag = GetQueryString("tag")
 				url ="/search?keywords=" + keywords + "&tag=" + tag
 			}
+			if(search == "tag"){
+				tag = GetQueryString("tag")
+				url ="/search?tag=" + tag
+			}
 			refreshGrid(url);
 			$("#lteminBtn").click(function(){
 				window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=lte');
@@ -110,8 +116,8 @@
 				);
 				$('span.tag').click(function(event){
 					tag=$(this).find('span').text().trim()
-					url="/search?keywords=" + $("#keywords").val() + "&tag=" + tag
-					window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=search&keywords=' + $("#keywords").val() + "&tag=" + tag);
+					url="/search?" + "tag=" + tag
+					window.history.pushState({},0,'http://'+window.location.host+'/static/search.html?search=tag&tag=' + tag);
 					refreshGrid(url);
 				})		
 			});

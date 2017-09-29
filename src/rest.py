@@ -13,16 +13,16 @@ app.config['LANGUAGES']="zh-CN"
 
 
 add_search=("INSERT INTO search "
-              "(keywords, e_keywords, o_keywords, description, product_id, is_auto, international, create_date, update_date) "
-              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(product_id)s, %(is_auto)s, %(international)s, %(create_date)s, %(update_date)s)")
+              "(keywords, e_keywords, o_keywords, description, product_id, is_auto, two_hand, international, create_date, update_date) "
+              "VALUES (%(keywords)s, %(e_keywords)s, %(o_keywords)s, %(description)s, %(product_id)s, %(is_auto)s, %(two_hand)s, %(international)s, %(create_date)s, %(update_date)s)")
 
 update_search=("UPDATE search "
-              "set keywords=%(keywords)s, e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s, international=%(international)s, update_date=%(update_date)s "
+              "set keywords=%(keywords)s, e_keywords=%(e_keywords)s, o_keywords=%(o_keywords)s, description=%(description)s, is_auto=%(is_auto)s, two_hand=%(two_hand)s, international=%(international)s, update_date=%(update_date)s "
               "where id=%(id)s")
 
 add_price=("INSERT INTO price "
-            "(product_id, search_id, url, src, description, seller, is_input, create_date,update_date) "
-            "VALUES(%(product_id)s, %(search_id)s, %(url)s, %(src)s, %(description)s, %(seller)s, %(is_input)s, %(create_date)s, %(update_date)s)")
+            "(product_id, search_id, url, src, description, seller, is_input, two_hand, create_date,update_date) "
+            "VALUES(%(product_id)s, %(search_id)s, %(url)s, %(src)s, %(description)s, %(seller)s, %(is_input)s, %(two_hand)s, %(create_date)s, %(update_date)s)")
 
 update_price=("UPDATE price "
               "set url=%(url)s, seller=%(seller)s, update_date=%(update_date)s "
@@ -49,7 +49,7 @@ def deleteSearch(searchId):
 def querySearchAvg():
     query='''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
         from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
         where p.price > (select avg_price from search ps where ps.id=s.id) 
         and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
@@ -68,7 +68,7 @@ def querySearchAvg():
 def querySearchMin():
     query='''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
         from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
         where count!=0 and p.price > (select price from price where id=s.min_price_id)
         and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
@@ -87,7 +87,7 @@ def querySearchMin():
 def querySearchGteMin():
     query='''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price min_price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+             p.update_date, s.is_auto, p.is_input, pp.price min_price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
         from search s inner join price p on s.product_id=p.product_id left join price pp on pp.id=s.min_price_id
         where s.count=0 or p.price <= (select price from price where id=s.min_price_id)
         and s.product_id in (select product_id from price p where s.id=p.search_id and saleState=1)
@@ -108,7 +108,7 @@ def querySearch():
     
     query = '''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
         from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id
     '''
     keywords = request.args.get('keywords')
@@ -153,7 +153,7 @@ def querySearchByProductId(product_id):
     logger.info("Get Search")
     query = '''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
         from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id and s.product_id=
     '''
     if product_id:
@@ -176,8 +176,8 @@ def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
     query = '''
         select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
-             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url
-    from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id and s.id=
+             p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
+    from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id where s.id=
     ''' 
     query = query + str(searchId)
     try:
@@ -200,20 +200,26 @@ def addTagsToSearch(searchResult, cursor):
 def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url) in cursor:
+    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url, ptwo_hand,stwo_hand) in cursor:
         if sid not in results:
             prices = []
-            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count, "min_url": min_url}
+            results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count, "min_url": min_url, "two_hand":stwo_hand}
         else:
             prices = results[sid]["prices"]
         if pid == None:
             continue
         if weiya == seller:
-            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M")}
+            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "two_hand":ptwo_hand}
             results[sid]["target"]=refPrice
         else:           
-            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "is_input":is_input})
+            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "is_input":is_input, "two_hand":ptwo_hand})
     
+    for search in results.values():
+        if search["min"] != None:
+            search["gap_price"] = search["min"] - search["target"]["price"]
+        else:
+            search["gap_price"] = None
+        
     for value in results.values():
         if not expand:
             del value["prices"]
@@ -254,6 +260,10 @@ def addSearch():
     if "is_auto" in search:
         if search["is_auto"] == 0 or search["is_auto"] == "0":
             is_auto = 0
+    two_hand = 1
+    if "two_hand" in search:
+        if search["two_hand"] == 0 or search["two_hand"] == "0":
+            two_hand = 0            
     if "tags" not in search:
         return responseError("E0007")
     
@@ -272,6 +282,7 @@ def addSearch():
         'e_keywords': e_keywords,
         'o_keywords': o_keywords,
         'description': description,
+        'two_hand': two_hand,
         'is_auto': is_auto,
         'international': international,
         "create_date": getFormatDate(),
@@ -291,7 +302,7 @@ def addSearch():
             cursor.execute(update_search, data_search)
         insertSearchTag(searchId, tagsId, cursor)
         conn.commit()
-        scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId, international)
+        scanPrice(product_id, search["keywords"],e_keywords, o_keywords, searchId, international, two_hand)
         return querySearchById(searchId)
     except Exception as e:
         logger.error(str(e))
@@ -321,11 +332,17 @@ def storeTags(tags):
         for (tagId, name) in cursor:
             tagsDict[name]=tagId
         for tag in tagsValue:
+            tag = tag.lower().strip()
+            if tag == '':
+                continue            
             if tag in tagsDict:
-                tagsId.append(tagsDict[tag])
+                if tagsDict[tag] not in tagsId:
+                    tagsId.append(tagsDict[tag])
             else:
                 cursor.execute(addTag, {"name": tag})
-                tagsId.append(cursor.lastrowid)
+                tagId=cursor.lastrowid
+                tagsDict[name] = tagId
+                tagsId.append(tagId)
         conn.commit()
     except Exception as e:
         logger.error(str(e))
@@ -400,12 +417,13 @@ def addPrice(search_id):
         seller = docs[product_id]["seller"]
         description = docs[product_id]["name"]
     price_data={
-        "product_id" : product_id,
-        "search_id" : search_id,
+        "product_id": product_id,
+        "search_id": search_id,
         "url": url,
         "seller" : seller,
-        "description" : description,
-        "is_input" : 1,
+        "description": description,
+        "two_hand": 0,
+        "is_input": 1,
         "src":src,
         "create_date": getFormatDate(),
         "update_date": getFormatDate()        
@@ -528,6 +546,38 @@ def tags():
         cursor.close()
         conn.close()
     return jsonify(results)
+
+@app.route('/twohands', methods=['GET'])
+def twohands():
+    logger.info("Get all huiya")
+    query = "select id, search_id, description, price, url,update_date FROM price where two_hand=1" 
+    results = []
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        for (pid, search_id, description, price,url, updateDate) in cursor:
+            results.append({"id":pid, "search_id":search_id, "description":description, "price":price, "url":url, "updateDate": datetime.strftime(updateDate,"%Y-%m-%d %H:%M")})
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(results)
+
+@app.route('/next', methods=['GET'])
+def next():
+    logger.info("Get next huiya")
+    query = "SELECT price, name,skuNames, linkUrl, saleState FROM pp where product_id not in(select product_id from search) limit 1" 
+    result = {}
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        for (price, name, skuNames, linkUrl, saleState) in cursor:
+            result={"name":name, "price":price,"skuNames":skuNames,"price":price,"url":linkUrl,"saleState":saleState}
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify(result)
 
 def responseError(errorCode, args=None, message=None):
     errorMsg = config.get("error", errorCode)

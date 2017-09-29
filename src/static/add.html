@@ -13,9 +13,20 @@
 <script>
 var fields=[
   	  {name: "seller", title:"供应商", width: 50, sorting: false},
-  	  {name: "description", title:"描述", width: 400},
+  	  {name: "description", title:"描述", width: 400, itemTemplate:function(value, item){
+  	  		return '<a target="_blank" href=' + item["url"] +'>' + value + '</a>'
+  	  }},
   	  {name: "price", title:"价格", width: 50},
   	  {name: "gap_price", title:"差价", width: 50},
+  	  {name: "two_hand", title:"二手", width: 50, sorting: false, itemTemplate: 
+  	  	function(value, item){
+			if(value==0){
+	  	  		return "否" 
+	  	  	}else{ 
+	  	  		return "是"
+	  	  	}
+  	  	}},
+  	  	
   	  {name: "updateDate", title:"更新时间", width: 100}
 ];
 function GetQueryString(name){
@@ -80,6 +91,11 @@ function showDetail(searchId){
 			}else{
 				$('#is_auto').prop('checked', true);
 			}
+			if(data.two_hand == "0"){
+				$('#two_hand').prop('checked', false);
+			}else{
+				$('#two_hand').prop('checked', true);
+			}
 			$("#addBtn").val("更新")
 			showGrid(data);
 		});
@@ -105,6 +121,13 @@ function showDetail(searchId){
 			       	$(this).val("0");
 			       }
 			});
+			$('#two_hand').change(function() {
+			      if($(this).is(":checked")) {
+			          $(this).val("1");
+			       }else{
+			       	$(this).val("0");
+			       }
+			});			
 			$('#international').change(function() {
 			      if($(this).is(":checked")) {
 			          $(this).val("1");
@@ -121,6 +144,41 @@ function showDetail(searchId){
 				    	location.reload();
 				    }
 				});
+			});	
+			$("#nextBtn").click(function(){	
+				$("#url").val('')
+				$("#keywords").val('')
+				$("#huiyaprice").text('')
+  				$("#huiyaDesc").text('')
+  				$("#saleState").text('')
+  				$("#e_keywords").text('')
+  				$("#o_keywords").text('')
+  				$("#maxprice").text('')
+  				$("#minprice").text('')
+  				$("#avgprice").text('')
+  				$('#two_hand').prop('checked', false);
+				$('#two_hand').val("0");
+  				$('#tags').importTags('')
+  				$("#jsGrid").jsGrid({
+			    	  width: "100%",
+			    	  height: "auto",
+			    	  sorting: true,
+			    	  autoload:   true,
+			    	  paging:     false,
+					  data: {},
+			    	  fields: fields
+			    });
+				$.getJSON("/next", function( data ) {
+					$("#url").val(data.url)
+					$("#keywords").val(data.skuNames)
+					$("#huiyaprice").text(data.price)
+  					$("#huiyaDesc").text(data.name)
+  				  	if(data.saleState == 1){
+  						$("#saleState").text("销售中")
+  					}else{
+  						$("#saleState").text("缺货中")
+  					}
+				});
 			});			
 			$("#addBtn").click(function(){
 				$.post({
@@ -134,6 +192,7 @@ function showDetail(searchId){
 					  	"o_keywords":$("#o_keywords").val(),
 					  	"international":$("#international").val(),
 					  	"is_auto":$("#is_auto").val(),
+					  	"two_hand":$("#two_hand").val(),
 					  	"tags":$("#tags").val()
 					  })
 					 			  
@@ -176,11 +235,11 @@ function showDetail(searchId){
 		<td>自动更新:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/></td>
 	</tr>
 	<tr>
-		<td>二手:</td><td><input type="checkbox" name="is_auto" id="is_auto" checked="checked" value="1"/></td>
+		<td>二手:</td><td><input type="checkbox" name="two_hand" id="two_hand" value="0"/></td>
 	</tr>
 	<tr>
 		<td><input type="button" value="添加" id="addBtn"></td>
-		<td colspan="2"><input type="button" value="删除" id="delBtn"></td>
+		<td colspan="2"><input type="button" value="下一个" id="nextBtn"><input type="button" value="删除" id="delBtn"></td>
 	</tr>		
 </table>
 

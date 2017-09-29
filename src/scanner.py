@@ -25,8 +25,8 @@ update_pp = ("UPDATE pp "
              )
 
 add_price=("INSERT INTO price "
-              "(search_id, product_id, description, src, price, seller, url, saleState,create_date, update_date)"
-              "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s, %(seller)s, %(url)s, %(saleState)s, %(create_date)s, %(update_date)s)")
+              "(search_id, product_id, description, src, price, seller, url, saleState, two_hand, create_date, update_date)"
+              "VALUES (%(search_id)s, %(product_id)s, %(description)s, %(src)s, %(price)s, %(seller)s, %(url)s, %(saleState)s, %(two_hand)s, %(create_date)s, %(update_date)s)")
 
 update_price=("UPDATE price "
               "set price=%(price)s, update_date=%(update_date)s,saleState=%(saleState)s "
@@ -190,9 +190,9 @@ def getReponseFromPp(url, payload, dead=True):
             responseContent = response.read()
             info = response.info()
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
-            expireDatetime = datetime.datetime.strptime("30 Sep 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
+            expireDatetime = datetime.datetime.strptime("13 Oct 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
-                print("Expire time is 19 Sep 2017 10:00:00 GMT, Application Exit")
+                print("Expire time is 10 Oct 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)
             return json.loads(responseContent.decode('utf-8')) 
         except Exception as e:
@@ -292,14 +292,13 @@ def jdProductsByUrl(search_id, product_id, url):
         conn.close()
     pass            
        
-def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international):
+def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international, twohand):
     if str(product_id) not in docs:
         logger.error("This product id-" + str(product_id) + " can't be found")
         return
     jdself = config.get("server", "jd.only.self")
-    jdtwo = config.get("server", "jd.two")
     twoword=config.get("words", "two")
- 
+    jddetail=config.get("words", "two")
     url="https://so.m.jd.com/ware/search.action?keyword=" + urllib.parse.quote(keywords)
     request = urllib.request.Request(url, headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
     setProxy(request)
@@ -321,8 +320,8 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
     for ware in wareList:
         if jdself.lower() == "true" and not ware["self"]:
             continue
-        if jdtwo.lower() == "false" and twoword in ware["wname"]:
-            continue        
+        #if jdtwo.lower() == "false" and twoword in ware["wname"]:
+        #    continue        
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
         if international==0 and ware["international"]:
             continue
@@ -331,12 +330,19 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         if ware["international"]:
             itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
         description = ware["wname"]
-        if not matchKeywords(str(ware.values()).lower(), keywords, e_keywords, o_keywords):
+        two_hand_val=0
+        hasTwoword=twoword in description
+        if twohand == 0 and hasTwoword:
             continue
-            #result = jdKeywordsPriceByUrl(itemUrl)
-            #description = result["description"].lower()
-            #if not matchKeywords(description, keywords, e_keywords, o_keywords):
-            #    continue
+        if hasTwoword:
+            two_hand_val = 1
+        if not matchKeywords(description.lower(), keywords, e_keywords, o_keywords):
+            if jddetail.lower() == "false":
+                continue
+            result = jdKeywordsPriceByUrl(itemUrl)
+            description = result["description"].lower()
+            if not matchKeywords(description, keywords, e_keywords, o_keywords):
+                continue
         data_price = {
             'search_id': searchId,
             'product_id': ware["wareId"],
@@ -344,6 +350,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
             'description': description,
             'seller': "jd",
             'saleState': 1,
+            'two_hand': two_hand_val,
             'src': "jd",
             'url': itemUrl,
             "create_date": getFormatDate(),
@@ -414,7 +421,7 @@ def deletePriceBySearchId(searchId):
     pass
     
 
-def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, international):
+def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, international, twohand):
     if e_keywords == None:
         e_keywords = ""
     if o_keywords == None:
@@ -453,6 +460,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
                 'saleState':saleState,
                 'description': name,
                 'src': "pp",
+                'two_hand': 0,
                 'url': "https://mstore.ppdai.com" + linkeUrl,
                 "create_date": getFormatDate(),
                 "update_date": getFormatDate()
@@ -463,7 +471,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
             else:    
                 cursor.execute(add_price, data_price)        
         conn.commit()
-        jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international)
+        jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international, twohand)
         deletePrices(searchId, set(productIds) - set(inProductIds))
         updateMaxMinAvg()
     finally:
@@ -472,11 +480,11 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
         
 def updateMaxMinAvg():
     update1='''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and price =
-                (select min(price) from price p where s.id=p.search_id and s.product_id!=p.product_id group by search_id) limit 1)'''
+                (select min(price) from price p where s.id=p.search_id and s.product_id!=p.product_id and p.two_hand=0 group by search_id) limit 1)'''
     update2='''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and price =
-                (select max(price) from price p where s.id=p.search_id and s.product_id!=p.product_id group by search_id) limit 1)
+                (select max(price) from price p where s.id=p.search_id and s.product_id!=p.product_id and p.two_hand=0 group by search_id) limit 1)
             '''
-    update3="update search s set avg_price=(select avg(price) from price p where s.id=p.search_id and saleState=1 group by search_id)"
+    update3="update search s set avg_price=(select avg(price) from price p where s.id=p.search_id and saleState=1 and p.two_hand=0 group by search_id)"
     update4="update price p , (select price, search_id from price pp where pp.seller='%s') t set p.gap_price=p.price - t.price where p.search_id=t.search_id"
     update5="update search s set count=(select count(*) from price p where p.search_id=s.id and seller!='%s' and saleState=1 )"
     weiya=config.get("words", "weiya")
