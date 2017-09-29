@@ -148,16 +148,16 @@ function showDetail(searchId){
 			$("#nextBtn").click(function(){	
 				$("#url").val('')
 				$("#keywords").val('')
+  				$("#o_keywords").val('')
+  				$("#e_keywords").val('')
+  				$('#two_hand').prop('checked', false);
+				$('#two_hand').val("0");
 				$("#huiyaprice").text('')
   				$("#huiyaDesc").text('')
   				$("#saleState").text('')
-  				$("#e_keywords").text('')
-  				$("#o_keywords").text('')
   				$("#maxprice").text('')
   				$("#minprice").text('')
   				$("#avgprice").text('')
-  				$('#two_hand').prop('checked', false);
-				$('#two_hand').val("0");
   				$('#tags').importTags('')
   				$("#jsGrid").jsGrid({
 			    	  width: "100%",
