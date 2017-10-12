@@ -190,7 +190,7 @@ def getReponseFromPp(url, payload, dead=True):
             responseContent = response.read()
             info = response.info()
             serverDatetime = datetime.datetime.strptime(info["Date"], '%a, %d %b %Y %H:%M:%S GMT')
-            expireDatetime = datetime.datetime.strptime("13 Oct 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
+            expireDatetime = datetime.datetime.strptime("17 Oct 2017 10:00:00 GMT", '%d %b %Y %H:%M:%S GMT')
             if serverDatetime > expireDatetime:
                 print("Expire time is 10 Oct 2017 10:00:00 GMT, Application Exit")
                 sys.exit(1)
@@ -531,13 +531,13 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 
 def scanAllPrice():
     logger.info("Start scan price")
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto, p.url, s.product_id, s.international from price p left join pp "
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p left join pp "
             "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
     cursor.execute(sql)
     searchs={}
-    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, url, sproduct_id, international) in cursor:
+    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, two_hand, url, sproduct_id, international) in cursor:
         if src == 'pp':
             if skuIds != None:
                 fetchPriceByAttributes(priceId, productId, skuIds.split(","))
@@ -545,12 +545,13 @@ def scanAllPrice():
             if e_keywords == None:
                 e_keywords = ""
             searchs[searchId] = {"keywords":keywords,"e_keywords":e_keywords,"o_keywords":o_keywords,
-                                 "product_id": productId, "is_auto":is_auto, "search_id":searchId,"url":url, "sproduct_id":sproduct_id, "international":international}
+                                 "product_id": productId, "is_auto":is_auto, "search_id":searchId,"url":url, "sproduct_id":sproduct_id, 
+                                 "international":international, "two_hand":two_hand}
     for (searchId, search) in searchs.items():
         inProductIds=[]
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:            
-            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"])
+            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"], two_hand)
         else:
             jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))

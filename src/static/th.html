@@ -9,8 +9,8 @@
 <script src="https://code.jquery.com/jquery-3.2.1.js" type="text/javascript"></script>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsgrid/1.5.3/jsgrid.min.js"></script>
 <script>
-    $(document).ready(function(){
-    $("#jsGrid").jsGrid({
+    function refreshGrid(url){
+       $("#jsGrid").jsGrid({
     	  width: "100%",
     	  height: "auto",
     	  sorting: true,
@@ -19,7 +19,7 @@
 
     	  controller: {
     	    loadData: function(filter) {
-    	      return $.getJSON("/twohands");
+    	      return $.getJSON(url);
     	    }
     	  },
     	  fields: [
@@ -29,15 +29,35 @@
     	    {name: "description", title:"名称", width: 200, itemTemplate:function(value, item){
     	    	return '<a target="_blank" href=' +item["url"] + '>' + value +'</a>'
     	    }},
+    	    {name: "seller", title:"来源", width: 20},
     	    {name: "price", title:"价格", width: 20},
     	    {name: "updateDate", title:"更新时间", width: 50}
     	  ]
-    });
+    	});
+    }
+    $(document).ready(function(){
+    	refreshGrid("/twohands")
+		$("#searchBtn").click(function(){
+			window.history.pushState({},0,'http://'+window.location.host+'/static/th.html?keywords=' + $("#keywords").val());
+			refreshGrid("/twohands?keywords=" + $("#keywords").val())
+		});    
+ 
     })
 </script>	
 </head>
 <body>
 <div class="row">
+<div class="info">
+<table style="width: 600px; ">
+	<tr>
+		<td style="color: red">关键字(keywords):</td><td><input name="keywords" id="keywords" style="width: 365px; "></td>
+	</tr>
+	<tr>
+		<td></td>
+		<td><input type="button" value="通过keywords查找" id="searchBtn"></td>
+	</tr>
+</table>
+</div>
 <div id="jsGrid"></div>
 </div>
 </body>

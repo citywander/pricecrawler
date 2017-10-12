@@ -125,8 +125,8 @@ def querySearch():
         conn.close()
     return jsonify(list(results.values()))
 
-def getQueryByKeywords(query, keywords):
-    likes = lambda key : " keywords like '%" + key +"%'"
+def getQueryByKeywords(query, keywords, columnName="keywords"):
+    likes = lambda key : " " + columnName +" like '%" + key +"%'"
     hasWhere = False
     if not keywords is None:
         keywords = handleUserInput(keywords)
@@ -550,14 +550,23 @@ def tags():
 @app.route('/twohands', methods=['GET'])
 def twohands():
     logger.info("Get all huiya")
-    query = "select id, search_id, description, price, url,update_date FROM price where two_hand=1" 
+    keywords = request.args.get('keywords')
+    query = "select id, search_id, description, price, seller, url,update_date FROM price "
+    if keywords is None:
+        query = query + "where two_hand=1"
+    else:
+        (query, hasWhere) = getQueryByKeywords(query, keywords, "description") 
+        if hasWhere:
+            query = query + " and two_hand=1"
+        else:
+            query = query + "where two_hand=1"
     results = []
     try:
         conn = connectToDb()
         cursor = conn.cursor()
         cursor.execute(query)
-        for (pid, search_id, description, price,url, updateDate) in cursor:
-            results.append({"id":pid, "search_id":search_id, "description":description, "price":price, "url":url, "updateDate": datetime.strftime(updateDate,"%Y-%m-%d %H:%M")})
+        for (pid, search_id, description, price,seller,url, updateDate) in cursor:
+            results.append({"id":pid, "search_id":search_id, "description":description, "price":price, "seller":seller, "url":url, "updateDate": datetime.strftime(updateDate,"%Y-%m-%d %H:%M")})
     finally:
         cursor.close()
         conn.close()
