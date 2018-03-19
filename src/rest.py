@@ -113,7 +113,7 @@ def querySearch():
     '''
     keywords = request.args.get('keywords')
     tag = request.args.get('tag')
-    (query, hasWhere) = getQueryByKeywords(query, keywords)
+    (query, hasWhere) = getQueryByKeywords(query, keywords, "p.description")
     try:
         conn = connectToDb()
         cursor = conn.cursor()
@@ -575,12 +575,13 @@ def twohands():
 @app.route('/next', methods=['GET'])
 def next():
     logger.info("Get next huiya")
-    query = "SELECT price, name,skuNames, linkUrl, saleState FROM pp where product_id not in(select product_id from search) limit 1" 
+    weiya=config.get("words", "weiya")
+    query = "SELECT price, name,skuNames, linkUrl, saleState FROM pp where seller='%s' and product_id not in(select product_id from search) limit 1" 
     result = {}
     try:
         conn = connectToDb()
         cursor = conn.cursor()
-        cursor.execute(query)
+        cursor.execute(query%weiya)
         for (price, name, skuNames, linkUrl, saleState) in cursor:
             result={"name":name, "price":price,"skuNames":skuNames,"price":price,"url":linkUrl,"saleState":saleState}
     finally:

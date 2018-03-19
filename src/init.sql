@@ -1,10 +1,10 @@
-CREATE DATABASE  IF NOT EXISTS `prodprice` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE  IF NOT EXISTS `prodprice` /*!40100 DEFAULT CHARACTER SET utf8 */;
 USE `prodprice`;
 -- MySQL dump 10.13  Distrib 5.7.12, for Win32 (AMD64)
 --
--- Host: 10.58.80.137    Database: prodprice
+-- Host: 116.62.20.219    Database: prodprice
 -- ------------------------------------------------------
--- Server version	5.5.5-10.2.8-MariaDB-10.2.8+maria~jessie
+-- Server version	5.7.17-0ubuntu0.16.04.1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -35,23 +35,14 @@ CREATE TABLE `pp` (
   `months` varchar(45) DEFAULT NULL,
   `price` varchar(45) DEFAULT NULL,
   `seller` varchar(45) CHARACTER SET utf8 DEFAULT NULL,
-  `saleState` int(11) DEFAULT 1,
+  `saleState` int(11) DEFAULT '1',
   `create_date` datetime DEFAULT NULL,
   `update_date` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `id_UNIQUE` (`id`),
   UNIQUE KEY `product_id_UNIQUE` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=1751020 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `pp`
---
-
-LOCK TABLES `pp` WRITE;
-/*!40000 ALTER TABLE `pp` DISABLE KEYS */;
-/*!40000 ALTER TABLE `pp` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `price`
@@ -67,27 +58,21 @@ CREATE TABLE `price` (
   `description` varchar(1024) CHARACTER SET utf8 DEFAULT NULL,
   `src` varchar(45) DEFAULT NULL,
   `price` int(11) DEFAULT NULL,
+  `last_price` int(11) DEFAULT NULL,
   `gap_price` int(11) DEFAULT NULL,
   `seller` varchar(45) CHARACTER SET utf8 DEFAULT NULL,
   `url` varchar(1024) DEFAULT NULL,
-  `saleState` int(11) DEFAULT 1,
-  `is_input` tinyint(1) DEFAULT 0,
+  `saleState` int(11) DEFAULT '1',
+  `is_input` tinyint(1) DEFAULT '0',
+  `two_hand` tinyint(1) DEFAULT '0',
   `create_date` datetime DEFAULT NULL,
   `update_date` datetime DEFAULT NULL,
+  `scan_date` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `id_UNIQUE` (`id`),
   KEY `PRODUCT_ID_INDEX` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=12765 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `price`
---
-
-LOCK TABLES `price` WRITE;
-/*!40000 ALTER TABLE `price` DISABLE KEYS */;
-/*!40000 ALTER TABLE `price` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `search`
@@ -102,27 +87,48 @@ CREATE TABLE `search` (
   `e_keywords` varchar(1000) DEFAULT NULL,
   `o_keywords` varchar(1000) DEFAULT NULL,
   `description` varchar(1000) DEFAULT NULL,
-  `is_auto` tinyint(1) DEFAULT 1,
   `product_id` bigint(20) DEFAULT NULL,
-  `international` tinyint(1) DEFAULT 1,
+  `international` tinyint(1) DEFAULT '0',
+  `min_price_id` bigint(20) DEFAULT NULL,
+  `max_price_id` bigint(20) DEFAULT NULL,
   `avg_price` int(11) DEFAULT NULL,
-  `min_price` int(11) DEFAULT NULL,
-  `max_price` int(11) DEFAULT NULL,  
+  `count` int(11) DEFAULT NULL,
+  `is_auto` tinyint(1) DEFAULT '1',
+  `two_hand` tinyint(1) DEFAULT '0',
   `create_date` datetime DEFAULT NULL,
   `update_date` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `product_id_UNIQUE` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=202 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `search`
+-- Table structure for table `search_tag`
 --
 
-LOCK TABLES `search` WRITE;
-/*!40000 ALTER TABLE `search` DISABLE KEYS */;
-/*!40000 ALTER TABLE `search` ENABLE KEYS */;
-UNLOCK TABLES;
+DROP TABLE IF EXISTS `search_tag`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `search_tag` (
+  `search_id` int(11) NOT NULL,
+  `tag_id` int(11) NOT NULL,
+  PRIMARY KEY (`search_id`,`tag_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tag`
+--
+
+DROP TABLE IF EXISTS `tag`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tag` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(1000) CHARACTER SET utf8 NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -133,4 +139,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-09-08 10:02:13
+-- Dump completed on 2018-03-19 10:29:49
