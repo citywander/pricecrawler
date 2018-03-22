@@ -55,20 +55,48 @@ def refresProductCache():
 
 def searchPpProduct(refresh=False):
     logger.info("Start scan all pp products")
-    url = "https://mstore.ppdai.com/product/searchPro"
-    pageIndex = 1;
-    pageSize = 100
-    onlyFirst = True
     curDocs = set()
+    categories = getCategories()
+    
+    for category in categories:
+        categoryId=category["category_id"]
+        logger.info("Start scan pp %s products"%(categoryId,))
+        parseProdByCategory(refresh, categoryId, curDocs)
+    pass
+    
+    if refresh:
+        deleteOldProducts(docs, curDocs)
+        refresProductCache()
+    logger.info("End scan all pp products")
+    
+def getCategories():
+    ctgUrl = "https://mstore.ppdai.com/avtm/getIndexCategoryNav"
+    payload = {"channel":1}
+    categories = []
+    
+    resContent = getReponseFromPp(ctgUrl, payload)
+    categoryList = resContent["responseContent"]
+    for ct in categoryList:
+        category = {}
+        category["name"] = ct["name"]
+        category["category_id"] = ct["linkUrl"][34:]
+        categories.append(category)
+    
+    return categories
+    
+def parseProdByCategory(refresh, categoryId, curDocs):
+    url = "https://mstore.ppdai.com/product/searchSku"
+    
+    pageIndex = 1;
+    pageSize = 100   
+    
     while True:
-        payload = {"pageIndex":pageIndex, "pageSize":pageSize}
+        payload = {"pageIndex":pageIndex, "pageSize":pageSize,"categoryId":categoryId}
         proContent = getReponseFromPp(url, payload)
-        totalPage = proContent["responseContent"]["totalPage"]
-        prodList = proContent["responseContent"]["product004List"]
-        if onlyFirst:
-            logger.info("Find " + str(proContent["responseContent"]["totalCount"]) + " products from pp, totalPage:" + str(totalPage))
-            onlyFirst = False
-        
+        prodList = proContent["responseContent"]
+        if prodList == []:
+            break
+
         for prod in prodList:
             prodId = prod["linkUrl"][9:]
             if prodId in docs and not refresh:
@@ -79,14 +107,9 @@ def searchPpProduct(refresh=False):
             prod["skuNames"] = ""
             prod["skuIds"] = ""
             ppProdSku(prodId, prod, curDocs)
-        if pageIndex >= totalPage:
-            break
+
         pageIndex = pageIndex + 1
-    pass
-    if refresh:
-        deleteOldProducts(docs, curDocs)
-        refresProductCache()
-    logger.info("End scan all pp products")
+    pass    
     
     
 def deleteOldProducts(docs, ids):
