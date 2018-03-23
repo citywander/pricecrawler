@@ -15,8 +15,8 @@ docs = {}
 beyondPrice = float(2.5)
 
 add_pp = ("INSERT INTO pp "
-              "(product_id, name, skuNames, skuIds, linkUrl, price, monthPayments, months,seller,saleState,create_date, update_date) "
-              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(skuIds)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(saleState)s, %(create_date)s, %(update_date)s)")
+              "(product_id, name, skuNames, skuIds, linkUrl, price, monthPayments, months,seller,saleState,create_date, update_date,category_id) "
+              "VALUES (%(product_id)s, %(name)s, %(skuNames)s, %(skuIds)s, %(linkUrl)s,  %(price)s, %(monthPayments)s, %(months)s, %(seller)s, %(saleState)s, %(create_date)s, %(update_date)s, %(category_id)s)")
 
 update_pp = ("UPDATE pp "
              "SET price=%(price)s,saleState=%(saleState)s, monthPayments= %(monthPayments)s, skuNames=%(skuNames)s, skuIds=%(skuIds)s, update_date=%(update_date)s "
@@ -35,6 +35,9 @@ update_price_scan_date = ("UPDATE price "
               "set scan_date=%(update_date)s "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
+add_category=("INSERT INTO category "
+              "(category_id, name)"
+              "VALUES (%(category_id)s, %(name)s)")
 
 def refresProductCache():
     query = ("SELECT id, product_id, name, price, seller, saleState FROM pp")
@@ -69,7 +72,21 @@ def searchPpProduct(refresh=False):
         refresProductCache()
     logger.info("End scan all pp products")
     
-def getCategories():
+def getCategories():    
+    query = ("SELECT category_id from category")
+    ctgSet = set()
+    
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        for (ctgId, ) in cursor:
+            ctgSet.add(ctgId)
+        
+    finally:
+        cursor.close()
+        conn.close()    
+    
     ctgUrl = "https://mstore.ppdai.com/avtm/getIndexCategoryNav"
     payload = {"channel":1}
     categories = []
@@ -81,8 +98,21 @@ def getCategories():
         category["name"] = ct["name"]
         category["category_id"] = ct["linkUrl"][34:]
         categories.append(category)
+        if not int(category["category_id"]) in ctgSet:
+            insertCategory(category["category_id"], ct["name"])
     
     return categories
+
+
+def insertCategory(ctgId, name):
+    conn = connectToDb()
+    cursor = conn.cursor()
+    data_pp = {
+        'category_id': ctgId,
+        'name': re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", name)
+    }
+    cursor.execute(add_category, data_pp)
+    conn.commit()
     
 def parseProdByCategory(refresh, categoryId, curDocs):
     url = "https://mstore.ppdai.com/product/searchSku"
@@ -106,7 +136,7 @@ def parseProdByCategory(refresh, categoryId, curDocs):
             prod["seller"] = getSeller(prodId)
             prod["skuNames"] = ""
             prod["skuIds"] = ""
-            ppProdSku(prodId, prod, curDocs)
+            ppProdSku(categoryId, prodId, prod, curDocs)
 
         pageIndex = pageIndex + 1
     pass    
@@ -141,7 +171,7 @@ def getSeller(prodId):
     return proContent["responseContent"]["sellerName"]
 
 
-def ppProdSku(prodId, prod, curDocs):
+def ppProdSku(categoryId, prodId, prod, curDocs):
     url = "https://mstore.ppdai.com/product/getAttribute"
     payload = {"productSkuId": prodId}
     proContent = getReponseFromPp(url, payload)
@@ -185,6 +215,7 @@ def ppProdSku(prodId, prod, curDocs):
                        "skuNames" :",".join(skuNames),
                        "skuIds" :",".join(skuIds),
                        "seller": prod["seller"],
+                       "category_id": categoryId,
                        "saleState": sku["saleState"]}
         product_id = skuProd["linkUrl"][9:]
         curDocs.add(product_id)
@@ -262,6 +293,7 @@ def insertOrUpdateDB(doc):
                     'monthPayments': doc["monthPayments"],
                     'months': doc["months"],
                     'seller': doc["seller"],
+                    "category_id": doc["category_id"],
                     'update_date': getFormatDate(),
                     'create_date': getFormatDate()
                 }                

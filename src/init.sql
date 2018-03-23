@@ -1,10 +1,8 @@
-CREATE DATABASE  IF NOT EXISTS `prodprice` /*!40100 DEFAULT CHARACTER SET utf8 */;
-USE `prodprice`;
 -- MySQL dump 10.13  Distrib 5.7.12, for Win32 (AMD64)
 --
--- Host: 116.62.20.219    Database: prodprice
+-- Host: 10.58.9.53    Database: prodprice
 -- ------------------------------------------------------
--- Server version	5.7.17-0ubuntu0.16.04.1
+-- Server version	5.7.20
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -16,6 +14,20 @@ USE `prodprice`;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `category`
+--
+
+DROP TABLE IF EXISTS `category`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `category` (
+  `category_id` int(11) NOT NULL,
+  `name` varchar(45) CHARACTER SET utf8 NOT NULL,
+  PRIMARY KEY (`category_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `pp`
@@ -38,10 +50,11 @@ CREATE TABLE `pp` (
   `saleState` int(11) DEFAULT '1',
   `create_date` datetime DEFAULT NULL,
   `update_date` datetime DEFAULT NULL,
+  `category_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `id_UNIQUE` (`id`),
   UNIQUE KEY `product_id_UNIQUE` (`product_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1751020 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=1756773 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -139,4 +152,4 @@ CREATE TABLE `tag` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-03-19 10:29:49
+-- Dump completed on 2018-03-23 14:47:43
