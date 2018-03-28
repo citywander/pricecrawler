@@ -36,8 +36,8 @@ update_price_scan_date = ("UPDATE price "
               "WHERE search_id=%(search_id)s and product_id=%(product_id)s")
 
 add_category=("INSERT INTO category "
-              "(category_id, name)"
-              "VALUES (%(category_id)s, %(name)s)")
+              "(category_id, name, parent_category_id)"
+              "VALUES (%(category_id)s, %(name)s, %(parent_category_id)s)")
 
 def refresProductCache():
     query = ("SELECT id, product_id, name, price, seller, saleState FROM pp")
@@ -63,6 +63,9 @@ def searchPpProduct(refresh=False):
     
     for category in categories:
         categoryId=category["category_id"]
+        parentId=category["parent_category_id"]
+        if parentId is None:
+            continue
         logger.info("Start scan pp %s products"%(categoryId,))
         parseProdByCategory(refresh, categoryId, curDocs)
     pass
@@ -82,34 +85,53 @@ def getCategories():
         cursor.execute(query)
         for (ctgId, ) in cursor:
             ctgSet.add(ctgId)
-        
     finally:
         cursor.close()
         conn.close()    
     
     ctgUrl = "https://mstore.ppdai.com/avtm/getIndexCategoryNav"
     payload = {"channel":1}
-    categories = []
     
+    allCtgs = []
     resContent = getReponseFromPp(ctgUrl, payload)
+    categoryList = resContent["responseContent"]
+    categories = parseCategory(ctgSet, resContent)
+    allCtgs.extend(categories)
+    for ctg in categories:
+        idd=ctg["category_id"]
+        ctgUrl = "https://mstore.ppdai.com/category/getChildCategories?parentId=" + idd
+        resContent = getReponseFromPp(ctgUrl)
+        categoryList = resContent["responseContent"]
+        categories = parseCategory(ctgSet, resContent, idd)
+        allCtgs.extend(categories)
+    
+    return allCtgs
+
+
+def parseCategory(ctgSet, resContent, parent_category_id = None):
+    categories = []
     categoryList = resContent["responseContent"]
     for ct in categoryList:
         category = {}
         category["name"] = ct["name"]
-        category["category_id"] = ct["linkUrl"][34:]
+        if parent_category_id == None:
+            category["category_id"] = ct["linkUrl"][34:]
+        else:
+            category["category_id"] = ct["id"]
+        category["parent_category_id"] = parent_category_id
         categories.append(category)
         if not int(category["category_id"]) in ctgSet:
-            insertCategory(category["category_id"], ct["name"])
-    
+            insertCategory(category["category_id"], ct["name"], parent_category_id)    
     return categories
 
 
-def insertCategory(ctgId, name):
+def insertCategory(ctgId, name, parentId):
     conn = connectToDb()
     cursor = conn.cursor()
     data_pp = {
         'category_id': ctgId,
-        'name': re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", name)
+        'name': re.sub(u"(\u2018|\u2019|\xa0|\u2122)", "", name),
+        "parent_category_id": parentId
     }
     cursor.execute(add_category, data_pp)
     conn.commit()
@@ -239,12 +261,17 @@ def getSku(attributeIds, prodId):
     return proContent["responseContent"]
 
     
-def getReponseFromPp(url, payload, dead=True):
+def getReponseFromPp(url, payload = None, dead=True):
+    if payload != None:
+        params = json.dumps(payload).encode('utf8')
+        method = "POST"
+    else:
+        params = None
+        method = "GET"
     while dead:
-        try:
-            params = json.dumps(payload).encode('utf8')
+        try:            
             request = urllib.request.Request(url, data=params,
-                                        headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"})
+                                                 headers={'content-type': 'application/json;charset=UTF-8', "Accept": "application/json"}, method=method)                
             setProxy(request)
             response = urllib.request.urlopen(request, timeout=10)
             responseContent = response.read()
