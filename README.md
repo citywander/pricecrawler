@@ -1,7 +1,7 @@
 # pricecrawler
 Download python from and install
 
-	https://www.python.org/ftp/python/3.6.2/python-3.6.2.exe
+	https://www.python.org/ftp/python/3.6.5/python-3.6.5.exe
 
 If in linux, run run.sh
 
