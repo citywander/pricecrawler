@@ -18,5 +18,6 @@ if __name__ == '__main__':
     
     rt = Periodic(int(config.get("server", "watch.interval")), retryScanAllPrice)
     rt = Periodic(int(config.get("server", "watch.pp.interval")), searchPpProduct, True)
-      
-    app.run(host='0.0.0.0', port=config.get("server", "listen.port"))
+
+    port = config.get("server", "listen.port").strip()
+    app.run(host='0.0.0.0', port=int(port))
