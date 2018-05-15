@@ -17,7 +17,7 @@ if __name__ == '__main__':
     thread1.start()
     
     rt = Periodic(int(config.get("server", "watch.interval")), retryScanAllPrice)
-    rt = Periodic(int(config.get("server", "watch.pp.interval")), searchPpProduct, True)
+    #rt = Periodic(int(config.get("server", "watch.pp.interval")), searchPpProduct, True)
 
     port = config.get("server", "listen.port").strip()
     app.run(host='0.0.0.0', port=int(port))

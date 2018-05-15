@@ -175,7 +175,7 @@ def querySearchByProductId(product_id):
 def querySearchById(searchId):
     logger.info("Get Search by id " + str(searchId))
     query = '''
-        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState, p.seller, p.url, p.product_id,
+        select s.id,keywords,e_keywords,o_keywords, s.description, s.count, p.id, p.description, p.price, p.gap_price, p.saleState,p.self, p.seller, p.url, p.product_id,
              p.update_date, s.is_auto, p.is_input, pp.price,(select price from price where id=s.max_price_id) max_price,s.avg_price,pp.url,p.two_hand,s.two_hand
     from search s inner join price p on s.id=p.search_id left join price pp on pp.id=s.min_price_id where s.id=
     ''' 
@@ -200,7 +200,9 @@ def addTagsToSearch(searchResult, cursor):
 def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
-    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url, ptwo_hand,stwo_hand) in cursor:
+    for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState,self, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url, ptwo_hand,stwo_hand) in cursor:
+        print("description"+str(self))
+        print("description" + seller)
         if sid not in results:
             prices = []
             results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count, "min_url": min_url, "two_hand":stwo_hand}
@@ -209,10 +211,10 @@ def handleSearchResults(cursor, expand=False):
         if pid == None:
             continue
         if weiya == seller:
-            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "two_hand":ptwo_hand}
+            refPrice={"id":pid, "description":pdesc, "price" : price, "saleState":saleState, "seller" : seller, "url" : url, "self" : self, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "two_hand":ptwo_hand}
             results[sid]["target"]=refPrice
         else:           
-            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "is_input":is_input, "two_hand":ptwo_hand})
+            prices.append({"id":pid, "description":pdesc, "price" : price, "gap_price" : gap_price, "seller" : seller, "url" : url,"self" : self, "product_id":product_id, "updateDate" : datetime.strftime(updateDate,"%Y-%m-%d %H:%M"), "is_input":is_input, "two_hand":ptwo_hand})
     
     for search in results.values():
         if search["min"] != None:
@@ -227,27 +229,32 @@ def handleSearchResults(cursor, expand=False):
 
 @app.route('/search', methods=['POST'])
 def addSearch():
+    print("song")
     search = request.json
     if "keywords" not in search:
         return responseError("E0002", ("keywords",))
-    if "product_id" in search:
-        product_id = search["product_id"]
-        url = "/product/" + product_id        
+    if "url" not in search:
+        return responseError("E0002", ("keywords",))
     else:
-        if "url" not in search:
-            return responseError("E0004")
-        else:
-            url = search["url"]
-            product_id = url[url.rindex("/") + 1:]
-            url = "/product/" + product_id       
-    
-    newSku = newPp(product_id)
+        product_id =handleUserInput(search["url"])
+        # if "url" not in search:
+        #     return responseError("E0004")
+        # else:
+        #     url = search["url"]
+        #     product_id = url[url.rindex("/") + 1:]
+        #     url = "/product/" + product_id
+
+    newSku = newPps(product_id)
     if newSku == None:
-        return responseError("E0003",(product_id,))
-    weiya=config.get("words", "weiya")
-    if newSku["seller"] != weiya:
         return responseError("E0006")
     description = None
+    # newSku = newPp(product_id)
+    # if newSku == None:
+    #     return responseError("E0003",(product_id,))
+    # weiya=config.get("words", "weiya")
+    # if newSku["seller"] != weiya:
+    #     return responseError("E0006")
+    # description = None
     if "description" in search:
         description = search["description"]
     e_keywords = None
@@ -266,16 +273,14 @@ def addSearch():
             two_hand = 0            
     if "tags" not in search:
         return responseError("E0007")
-    
     search["keywords"] = handleUserInput(search["keywords"])
-    huiyaDescription=docs[product_id]["name"]
+    huiyaDescription=newSku["name"].lower()
+    # huiyaDescription = docs[product_id]["name"]
     if not matchKeywords(huiyaDescription, search["keywords"], e_keywords, o_keywords):
         return responseError("E0005", (search["keywords"],))
-    
     international = 1
     if "international" in search and (search["international"] == 0 or search["international"] == "0"):
         international = 0
-       
     data_search = {
         "product_id":product_id,
         'keywords': search["keywords"],
@@ -288,6 +293,7 @@ def addSearch():
         "create_date": getFormatDate(),
         "update_date": getFormatDate()
     }
+
     searchId = getSearchByProductId(product_id)
     tagsId=storeTags(search["tags"])
     try:
@@ -390,6 +396,19 @@ def newPp(product_id):
            "seller": sku["seller"]}
     insertOrUpdateDB(skuProd)
     return skuProd 
+
+def newPps(product_id):
+    query = ("select id,name,product_id,price,category_id,saleState from wy_reptilian_commodity where product_id=" + product_id)
+    try:
+        conn = connectToDb()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        for (idd,name,product_id,price,category_id,saleState) in cursor:
+            return {"id": idd, "name": name, "product_id": product_id, "price": price, "category_id": category_id, "saleState": saleState}
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/search/<path:search_id>/price', methods=['POST'])
 def addPrice(search_id):

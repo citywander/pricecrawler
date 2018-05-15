@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS `category`;
 CREATE TABLE `category` (
   `category_id` int(11) NOT NULL,
   `name` varchar(45) CHARACTER SET utf8 NOT NULL,
+  `parent_category_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`category_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -143,6 +144,19 @@ CREATE TABLE `tag` (
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+CREATE TABLE `wy_reptilian_commodity` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) DEFAULT NULL,
+  `product_id` bigint(20) DEFAULT NULL,
+  `price` int(11) DEFAULT NULL,
+  `category_id` int(11) DEFAULT NULL,
+  `saleState` int(11) DEFAULT NULL,
+  `create_date` datetime DEFAULT NULL,
+  `update_date` datetime DEFAULT NULL,
+  `ISDELETE` enum('N','Y') DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `product_id_UNIQUE` (`product_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
