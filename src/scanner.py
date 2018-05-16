@@ -352,11 +352,11 @@ def insertOrUpdateDB(doc):
             conn.close()  
 
 
-def jdKeywordsPriceByUrl(url):
+def jdKeywordsPriceByUrl(usr):
     headers = {'content-type': 'application/json;charset=UTF-8',
              "Accept": "application/json",
              "Cookie":'JAMCookie=true; USER_FLAG_CHECK=85b0b2409f79d6915479702195a7f7fe; sid=8f905c0ea3d730a68dc2d2bb7a142e4c; __jda=181809404.15048617124911937256625.1504861712.1504861712.1504861712.1; __jdb=181809404.6.15048617124911937256625|1.1504861712; __jdv=181809404|direct|-|none|-|1504861712492; __jdc=181809404; mba_muid=15048617124911937256625; mba_sid=15048617124924978589409612432.6;'}
-    request = urllib.request.Request(url, headers=headers)
+    request = urllib.request.Request(usr, headers=headers)
     setProxy(request)
     response = urllib.request.urlopen(request)
     lines = response.readlines()
@@ -365,7 +365,6 @@ def jdKeywordsPriceByUrl(url):
     result = {"description":description, "price": price}
     for line in lines:
         strLine = line.decode("utf-8")
-        print("keywords" in strLine)
         if "keywords" in strLine:
             description = strLine[strLine.index("CONTENT") + 9: strLine.index(">") - 1 ]
             result["description"] = description
@@ -413,7 +412,6 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
     response = urllib.request.urlopen(request)
     lines = response.readlines()
     for line in lines:
-        print(line)
         strLine = line.decode("utf-8")
         if "searchData:" in strLine:
             prodList = strLine[strLine.index("searchData:") + len("searchData:"):strLine.index("abtestForUpToSaving") - 2]
@@ -423,14 +421,16 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
     huiyaPrice = docss[str(product_id)]["price"]
     huisaleState = docss[str(product_id)]["saleState"]
     print("n1sad")
+    global n1
     for ware in wareList:
         n1 = 1
-        if ware["self"]:
-             n1=2
-
+        # print(ware["property_flag"])
+        if not ware["self"]:
+            n1=2
          # if jdtwo.lower() == "false" and twoword in ware["wname"]:
         #    continue
-
+        print(n1)
+        print(ware["wname"])
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
         if international == 0 and ware["international"]:
             continue
@@ -448,19 +448,19 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         if not matchKeywords(description.lower(), keywords, e_keywords, o_keywords):
             if jddetail.lower() == "false":
                 continue
-            result = jdKeywordsPriceByUrl(itemUrl)
-            description = result["description"].lower()
-            # print("descriptionæ˜¯ï¼š"+description)
-            # print("keywordsï¼š" + keywords)
-            # print("keywordsï¼š" + keywords)
-            # print("keywordsï¼š" + keywords)
-            if not matchKeywords(description, keywords, keywords, keywords):
+            # result = jdKeywordsPriceByUrl(itemUrl)
+            # description = result["description"].lower()
+            # print("description是："+description)
+            # print("keywords：" + keywords)
+            # print("keywords：" + keywords)
+            # print("keywords：" + keywords)
+            if not matchKeywords(ware["wname"], keywords, keywords, keywords):
                 continue
         data_price = {
             'search_id': searchId,
             'product_id': ware["wareId"],
             'price': ware["jdPrice"],
-            'description': description,
+            'description': ware["wname"],
             'seller': "jd",
             'saleState': 1,
             'self':n1,
@@ -581,7 +581,7 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
                 'search_id': searchId,
                 'product_id': productId,
                 'price': price,
-                'seller': "çº¬é›…",
+                'seller': "纬雅",
                 'saleState':saleState,
                 'self':1,
                 'description': name,
@@ -597,12 +597,11 @@ def scanPrice(product_id, keywords, e_keywords, o_keywords, searchId, internatio
             else:
                 cursor.execute(add_price, data_price)
         conn.commit()
+        # print("拍拍贷商品吧注解解开可和拍拍贷商品比较")
         #scanPrices(keywords, e_keywords, o_keywords, searchId)
 
         refresProductCaches()
-        print("1");
         jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international, twohand)
-        print("2")
         deletePrices(searchId, set(productIds) - set(inProductIds))
         updateMaxMinAvg()
     finally:
@@ -724,17 +723,18 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 
 def scanAllPrice():
     logger.info("Start scan price")
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords,  pp.skuIds, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p left join pp "
-            "on p.product_id=pp.product_id  and src='pp' left join search s on s.id=p.search_id")
+    print("自动更新")
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p"
+            "left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
     cursor.execute(sql)
     searchs = {}
-    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, skuIds, is_auto, two_hand, url, sproduct_id, international) in cursor:
-        if src == 'pp':
-            if skuIds != None:
-                fetchPriceByAttributes(priceId, productId, skuIds.split(","))
-        else:
+    for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, is_auto, two_hand, url, sproduct_id, international) in cursor:
+         if src == 'jd':
+         #   if skuIds != None:
+         #         fetchPriceByAttributes(priceId, productId, skuIds.split(","))
+         # else:
             if e_keywords == None:
                 e_keywords = ""
             searchs[searchId] = {"keywords":keywords, "e_keywords":e_keywords, "o_keywords":o_keywords,
@@ -745,8 +745,8 @@ def scanAllPrice():
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:
             jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"], two_hand)
-        else:
-            jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
+        # else:
+        #     jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
     pass
     updateMaxMinAvg()
