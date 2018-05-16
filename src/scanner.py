@@ -362,16 +362,24 @@ def jdKeywordsPriceByUrl(usr):
     lines = response.readlines()
     description = ""
     price = -1
-    result = {"description":description, "price": price}
+    result = {}
     for line in lines:
-        strLine = line.decode("utf-8")
-        if "keywords" in strLine:
-            description = strLine[strLine.index("CONTENT") + 9: strLine.index(">") - 1 ]
+        strLine = line.decode("utf-8").lower()
+        if "keywords" in strLine and "description" not in result:
+            description = strLine[strLine.index("content") + 9: strLine.rfind('"')]
             result["description"] = description
+        if "&yen;<em>" in strLine:            
+            price = strLine.strip().replace("&yen;<em>", "").replace("</em>","")
+            result["price"] = price
+            break
         if "big-price" in strLine:
             price = strLine[strLine.index(">") + 1: strLine.index("/") - 1 ]
             result["price"] = price
             break
+    if "description" not in result:
+        result["description"] = ""
+    if "price" not in result:
+        result["price"] = -1
     return result
 
 def jdProductsByUrl(search_id, product_id, url):
