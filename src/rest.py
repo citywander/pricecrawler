@@ -229,7 +229,6 @@ def handleSearchResults(cursor, expand=False):
 
 @app.route('/search', methods=['POST'])
 def addSearch():
-    print("song")
     search = request.json
     if "keywords" not in search:
         return responseError("E0002", ("keywords",))
