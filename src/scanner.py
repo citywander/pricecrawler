@@ -13,6 +13,7 @@ from globUtils import getFormatDate, config
 docs = {}
 docss = {}
 
+
 beyondPrice = float(2.5)
 
 add_pp = ("INSERT INTO pp "
@@ -384,6 +385,7 @@ def jdKeywordsPriceByUrl(usr):
 
 def jdProductsByUrl(search_id, product_id, url):
     kwprice = jdKeywordsPriceByUrl(url)
+
     data_price = {
         'price': kwprice["price"],
         'search_id': search_id,
@@ -404,6 +406,7 @@ def jdProductsByUrl(search_id, product_id, url):
 
 
 def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international, twohand):
+    print("laile")
     if str(product_id) not in docss:
         logger.error("This product id-" + str(product_id) + " can't be found")
         return
@@ -419,12 +422,14 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         o_keywords = ""
     response = urllib.request.urlopen(request)
     lines = response.readlines()
+    global prods
     for line in lines:
         strLine = line.decode("utf-8")
         if "searchData:" in strLine:
             prodList = strLine[strLine.index("searchData:") + len("searchData:"):strLine.index("abtestForUpToSaving") - 2]
             prods = json.loads(prodList)
             break
+
     wareList = prods["wareList"]["wareList"]
     huiyaPrice = docss[str(product_id)]["price"]
     huisaleState = docss[str(product_id)]["saleState"]
@@ -439,6 +444,7 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         #    continue
         print(n1)
         print(ware["wname"])
+        print(ware["wareId"])
         itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
         if international == 0 and ware["international"]:
             continue
@@ -678,6 +684,7 @@ def scanPrices(keywords, e_keywords, o_keywords, searchId):
         conn.close()
         
 def updateMaxMinAvg():
+    print("ok?????")
     update1 = '''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and price =
                 (select min(price) from price p where s.id=p.search_id and s.product_id!=p.product_id and p.two_hand=0 group by search_id) limit 1)'''
     update2 = '''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and price =
@@ -732,19 +739,32 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 def scanAllPrice():
     logger.info("Start scan price")
     print("自动更新")
-    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p"
+    refresProductCaches()
+    sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p "
             "left join search s on s.id=p.search_id")
     conn = connectToDb()
     cursor = conn.cursor()
     cursor.execute(sql)
     searchs = {}
     for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, is_auto, two_hand, url, sproduct_id, international) in cursor:
+         print("1")
          if src == 'jd':
          #   if skuIds != None:
          #         fetchPriceByAttributes(priceId, productId, skuIds.split(","))
          # else:
+            print("2")
             if e_keywords == None:
                 e_keywords = ""
+            print(keywords)
+            print(e_keywords)
+            print(o_keywords)
+            print(productId)
+            print(is_auto)
+            print(searchId)
+            print(url)
+            print(sproduct_id)
+            print(international)
+            print(two_hand)
             searchs[searchId] = {"keywords":keywords, "e_keywords":e_keywords, "o_keywords":o_keywords,
                                  "product_id": productId, "is_auto":is_auto, "search_id":searchId, "url":url, "sproduct_id":sproduct_id,
                                  "international":international, "two_hand":two_hand}
@@ -752,9 +772,12 @@ def scanAllPrice():
         inProductIds = []
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:
-            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId, productIds, inProductIds, search["international"], two_hand)
-        # else:
-        #     jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
+            print("哈哈")
+            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId,
+                   productIds, inProductIds, search["international"], two_hand)
+        else:
+            print("呵呵")
+            jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
     pass
     updateMaxMinAvg()
