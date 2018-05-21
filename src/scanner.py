@@ -12,7 +12,7 @@ from globUtils import getFormatDate, config
 
 docs = {}
 docss = {}
-
+# prods= {}
 
 beyondPrice = float(2.5)
 
@@ -406,7 +406,6 @@ def jdProductsByUrl(search_id, product_id, url):
 
 
 def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productIds, inProductIds, international, twohand):
-    print("laile")
     if str(product_id) not in docss:
         logger.error("This product id-" + str(product_id) + " can't be found")
         return
@@ -422,37 +421,29 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         o_keywords = ""
     response = urllib.request.urlopen(request)
     lines = response.readlines()
-    global prods
+
+
     for line in lines:
         strLine = line.decode("utf-8")
-        if "searchData:" in strLine:
-            prodList = strLine[strLine.index("searchData:") + len("searchData:"):strLine.index("abtestForUpToSaving") - 2]
-            prods = json.loads(prodList)
+        if "author" in strLine :
+            prodList = strLine[strLine.index("Paragraph")-11 + len("Paragraph:"):strLine.index("adpos") -2 ]
+            path1 = "{"+prodList.replace('\\', '/')
+            prods = json.loads(path1)
             break
-
-    wareList = prods["wareList"]["wareList"]
+    wareList = prods["Paragraph"]
     huiyaPrice = docss[str(product_id)]["price"]
     huisaleState = docss[str(product_id)]["saleState"]
-    print("n1sad")
-    global n1
     for ware in wareList:
-        n1 = 1
-        # print(ware["property_flag"])
-        if not ware["self"]:
-            n1=2
          # if jdtwo.lower() == "false" and twoword in ware["wname"]:
         #    continue
-        print(n1)
-        print(ware["wname"])
-        print(ware["wareId"])
-        itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
-        if international == 0 and ware["international"]:
+        itemUrl = "https://item.m.jd.com/product/" + ware["wareid"] + ".html"
+        # if international == 0 and ware["international"]:
+        #     continue
+        if float(huiyaPrice) / float(ware["dredisprice"]) > beyondPrice and huisaleState == 1:
             continue
-        if float(huiyaPrice) / float(ware["jdPrice"]) > beyondPrice and huisaleState == 1:
-            continue
-        if ware["international"]:
-            itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
-        description = ware["wname"]
+        # if ware["international"]:
+        #     itemUrl = "https://mitem.jd.hk/product/" + ware["wareid"] + ".html"
+        description = ware["Content"]["warename"]
         two_hand_val = 0
         hasTwoword = twoword in description
         if twohand == 0 and hasTwoword:
@@ -462,22 +453,18 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         if not matchKeywords(description.lower(), keywords, e_keywords, o_keywords):
             if jddetail.lower() == "false":
                 continue
-            # result = jdKeywordsPriceByUrl(itemUrl)
-            # description = result["description"].lower()
-            # print("description是："+description)
-            # print("keywords：" + keywords)
-            # print("keywords：" + keywords)
-            # print("keywords：" + keywords)
-            if not matchKeywords(ware["wname"], keywords, keywords, keywords):
+            result = jdKeywordsPriceByUrl(itemUrl)
+            description = result["description"].lower()
+            if not matchKeywords(description, keywords, e_keywords, o_keywords):
                 continue
         data_price = {
             'search_id': searchId,
-            'product_id': ware["wareId"],
-            'price': ware["jdPrice"],
-            'description': ware["wname"],
+            'product_id': ware["wareid"],
+            'price': ware["dredisprice"],
+            'description': description,
             'seller': "jd",
             'saleState': 1,
-            'self':n1,
+            'self':ware["property_flag"],
             'two_hand': two_hand_val,
             'src': "jd",
             'url': itemUrl,
@@ -487,17 +474,85 @@ def jdProducts(product_id, keywords, e_keywords, o_keywords, searchId, productId
         try:
             conn = connectToDb()
             cursor = conn.cursor()
-            if ware["wareId"] in productIds:
+            if ware["wareid"] in productIds:
                 cursor.execute(update_price, data_price)
                 cursor.execute(update_price_scan_date, data_price)
             else:
                 cursor.execute(add_price, data_price)
-            inProductIds.append(str(ware["wareId"]))
+            inProductIds.append(str(ware["wareid"]))
             conn.commit()
         finally:
             cursor.close()
             conn.close()
         pass
+
+    # for line in lines:
+    #     strLine = line.decode("utf-8")
+    #     if "searchData:" in strLine:
+    #         prodList = strLine[strLine.index("searchData:") + len("searchData:"):strLine.index("abtestForUpToSaving") - 2]
+    #         prods = json.loads(prodList)
+    #         break
+    # wareList = prods["wareList"]["wareList"]
+    # huiyaPrice = docss[str(product_id)]["price"]
+    # huisaleState = docss[str(product_id)]["saleState"]
+    # for ware in wareList:
+    #     n1 = 1
+    #     if not ware["self"]:
+    #         n1=2
+    #      # if jdtwo.lower() == "false" and twoword in ware["wname"]:
+    #     #    continue
+    #     itemUrl = "https://item.m.jd.com/product/" + ware["wareId"] + ".html"
+    #     if international == 0 and ware["international"]:
+    #         continue
+    #     if float(huiyaPrice) / float(ware["jdPrice"]) > beyondPrice and huisaleState == 1:
+    #         continue
+    #     if ware["international"]:
+    #         itemUrl = "https://mitem.jd.hk/product/" + ware["wareId"] + ".html"
+    #     description = ware["wname"]
+    #     two_hand_val = 0
+    #     hasTwoword = twoword in description
+    #     if twohand == 0 and hasTwoword:
+    #         continue
+    #     if hasTwoword:
+    #         two_hand_val = 1
+    #     if not matchKeywords(description.lower(), keywords, e_keywords, o_keywords):
+    #         if jddetail.lower() == "false":
+    #             continue
+    #         result = jdKeywordsPriceByUrl(itemUrl)
+    #         description = result["description"].lower()
+    #         # print("keywords：" + keywords)
+    #         # print("keywords：" + keywords)
+    #         # print("keywords：" + keywords)
+    #         if not matchKeywords(description, keywords, e_keywords, o_keywords):
+    #             continue
+    #     data_price = {
+    #         'search_id': searchId,
+    #         'product_id': ware["wareId"],
+    #         'price': ware["jdPrice"],
+    #         'description': description,
+    #         'seller': "jd",
+    #         'saleState': 1,
+    #         'self':n1,
+    #         'two_hand': two_hand_val,
+    #         'src': "jd",
+    #         'url': itemUrl,
+    #         "create_date": getFormatDate(),
+    #         "update_date": getFormatDate()
+    #     }
+    #     try:
+    #         conn = connectToDb()
+    #         cursor = conn.cursor()
+    #         if ware["wareId"] in productIds:
+    #             cursor.execute(update_price, data_price)
+    #             cursor.execute(update_price_scan_date, data_price)
+    #         else:
+    #             cursor.execute(add_price, data_price)
+    #         inProductIds.append(str(ware["wareId"]))
+    #         conn.commit()
+    #     finally:
+    #         cursor.close()
+    #         conn.close()
+    #     pass
 
 
 
@@ -523,6 +578,28 @@ def matchKeywords(description, keywords, e_keywords, o_keywords):
         return False
     return True   
 
+
+def matchKeywords(description, keywords, e_keywords, o_keywords):
+    for kw in keywords.split(","):
+        if kw not in description:
+            return False
+    if not e_keywords:
+        e_keywords = ""
+    for kw in e_keywords.split(","):
+        if kw in description and kw != "":
+            return False
+    searched = False
+    if not o_keywords:
+        o_keywords = ""
+    if o_keywords == "" or o_keywords == None:
+        searched = True
+    for kw in o_keywords.split(","):
+        if kw in description and kw != "":
+            searched = True
+            break
+    if not searched:
+        return False
+    return True
 
 class SearchPpProductThread (threading.Thread):
 
@@ -684,7 +761,6 @@ def scanPrices(keywords, e_keywords, o_keywords, searchId):
         conn.close()
         
 def updateMaxMinAvg():
-    print("ok?????")
     update1 = '''update search s set min_price_id=(select id from price pp where s.id=pp.search_id and price =
                 (select min(price) from price p where s.id=p.search_id and s.product_id!=p.product_id and p.two_hand=0 group by search_id) limit 1)'''
     update2 = '''update search s set max_price_id=(select id from price pp where s.id=pp.search_id and price =
@@ -747,24 +823,12 @@ def scanAllPrice():
     cursor.execute(sql)
     searchs = {}
     for (priceId, searchId, productId, src, keywords, e_keywords, o_keywords, is_auto, two_hand, url, sproduct_id, international) in cursor:
-         print("1")
          if src == 'jd':
          #   if skuIds != None:
          #         fetchPriceByAttributes(priceId, productId, skuIds.split(","))
          # else:
-            print("2")
             if e_keywords == None:
                 e_keywords = ""
-            print(keywords)
-            print(e_keywords)
-            print(o_keywords)
-            print(productId)
-            print(is_auto)
-            print(searchId)
-            print(url)
-            print(sproduct_id)
-            print(international)
-            print(two_hand)
             searchs[searchId] = {"keywords":keywords, "e_keywords":e_keywords, "o_keywords":o_keywords,
                                  "product_id": productId, "is_auto":is_auto, "search_id":searchId, "url":url, "sproduct_id":sproduct_id,
                                  "international":international, "two_hand":two_hand}
@@ -772,11 +836,8 @@ def scanAllPrice():
         inProductIds = []
         productIds = getProductIdsFromPrice(cursor, searchId, "jd")
         if search["is_auto"]:
-            print("哈哈")
-            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId,
-                   productIds, inProductIds, search["international"], two_hand)
+            jdProducts(search["sproduct_id"], search["keywords"], search["e_keywords"], search["o_keywords"], searchId,productIds, inProductIds, search["international"], two_hand)
         else:
-            print("呵呵")
             jdProductsByUrl(search["search_id"], search["product_id"], search["url"])
         deletePrices(searchId, set(productIds) - set(inProductIds))
     pass
