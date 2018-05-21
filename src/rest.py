@@ -201,8 +201,6 @@ def handleSearchResults(cursor, expand=False):
     results = {}
     weiya=config.get("words", "weiya")
     for (sid, keywords, e_keywords, o_keywords, desc, count, pid, pdesc, price, gap_price, saleState,self, seller, url, product_id, updateDate, is_auto, is_input, min_price,max_price,avg_price, min_url, ptwo_hand,stwo_hand) in cursor:
-        print("description"+str(self))
-        print("description" + seller)
         if sid not in results:
             prices = []
             results[sid] = {"id":sid, "keywords" : keywords, "e_keywords": e_keywords, "o_keywords":o_keywords, "description":desc, "prices":prices, "is_auto":is_auto, "min" : min_price, "max":max_price, "avg" : avg_price, "count":count, "min_url": min_url, "two_hand":stwo_hand}

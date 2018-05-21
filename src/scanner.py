@@ -729,12 +729,6 @@ def scanPrices(keywords, e_keywords, o_keywords, searchId):
         cursor.execute(sql)
         # huiyaPrice = docs[product_id]["price"]
         for (name, productId, seller, linkeUrl, price, saleState) in cursor:
-            print(name)
-            print(productId)
-            print(seller)
-            print(linkeUrl)
-            print(price)
-            print(saleState)
             data_price = {
                 'search_id': searchId,
                 'product_id': productId,
@@ -753,7 +747,6 @@ def scanPrices(keywords, e_keywords, o_keywords, searchId):
             if str(productId) in productIds:
                 cursor.execute(update_price, data_price)
             else:
-                print(data_price["description"])
                 cursor.execute(add_price, data_price)
         conn.commit()
     finally:
@@ -814,7 +807,6 @@ def getProductIdsFromPrice(cursor, searchId, src=None):
 
 def scanAllPrice():
     logger.info("Start scan price")
-    print("自动更新")
     refresProductCaches()
     sql = ("select p.id, p.search_id, p.product_id, src, s.keywords, s.e_keywords, s.o_keywords, s.is_auto, s.two_hand, p.url, s.product_id, s.international from price p "
             "left join search s on s.id=p.search_id")
